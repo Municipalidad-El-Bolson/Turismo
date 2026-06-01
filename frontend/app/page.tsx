@@ -1,18 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   AlertTriangle,
   BarChart3,
+  Building2,
   CalendarDays,
   CheckCircle2,
+  Copy,
   ClipboardList,
+  LogIn,
+  Plus,
   LogOut,
   MessageCircle,
   Save,
   Users,
 } from "lucide-react";
-import { Compliance, Entry, StatsRow, User, api, demoEntries, demoUsers } from "../lib/api";
+import {
+  Compliance,
+  Entry,
+  EstablishmentSummary,
+  StatsRow,
+  User,
+  api,
+  demoEntries,
+  demoUsers,
+} from "../lib/api";
 
 function mondayOf(date: Date) {
   const copy = new Date(date);
@@ -29,6 +43,13 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>(demoEntries);
   const [compliance, setCompliance] = useState<Compliance[]>([]);
   const [stats, setStats] = useState<StatsRow[]>([]);
+  const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
+  const [lastCreatedId, setLastCreatedId] = useState("");
+  const [loginId, setLoginId] = useState("");
+  const [adminUsername, setAdminUsername] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState<EstablishmentSummary | null>(null);
+  const [selectedProfileEntries, setSelectedProfileEntries] = useState<Entry[]>([]);
   const [weekStart, setWeekStart] = useState(currentWeek);
   const [occupiedPlaces, setOccupiedPlaces] = useState(0);
   const [occupiedUnits, setOccupiedUnits] = useState(0);
@@ -43,9 +64,15 @@ export default function Home() {
   );
 
   async function login(userId: string) {
-    const demo = demoUsers.find((item) => item.id === userId);
+    const cleanUserId = userId.trim();
+    if (!cleanUserId) {
+      setMessage("Ingresa un ID de acceso.");
+      return;
+    }
+
+    const demo = demoUsers.find((item) => item.id === cleanUserId);
     try {
-      const response = await api.login(userId);
+      const response = await api.login(cleanUserId);
       setUser(response.user);
       setMessage("Conectado al backend.");
       if (response.user.role === "establishment") {
@@ -56,11 +83,37 @@ export default function Home() {
       }
     } catch {
       setUser(demo ?? null);
-      setMessage("Backend no disponible: usando datos demo.");
+      setMessage(demo ? "Backend no disponible: usando datos demo." : "No se encontro un usuario con ese ID.");
       if (demo?.role === "admin") {
         setCompliance(demoCompliance);
         setStats(demoStats);
+        setEstablishments(demoEstablishments);
       }
+    }
+  }
+
+  async function loginAdmin() {
+    if (!adminUsername.trim() || !adminPassword.trim()) {
+      setMessage("Ingresa usuario y contrasena de admin.");
+      return;
+    }
+
+    try {
+      const response = await api.adminLogin(adminUsername.trim(), adminPassword.trim());
+      setUser(response.user);
+      setMessage("Conectado al backend.");
+      await loadAdminData(response.user.id);
+    } catch {
+      if (adminUsername.trim() === "admin" && adminPassword.trim() === "admin123") {
+        const demoAdmin = demoUsers.find((item) => item.role === "admin");
+        setUser(demoAdmin ?? null);
+        setCompliance(demoCompliance);
+        setStats(demoStats);
+        setEstablishments(demoEstablishments);
+        setMessage("Backend no disponible: usando admin demo.");
+        return;
+      }
+      setMessage("Usuario o contrasena de admin incorrectos.");
     }
   }
 
@@ -96,18 +149,66 @@ export default function Home() {
 
   async function loadAdminData(userId = user?.id ?? "meb-admin") {
     try {
-      const [complianceResponse, statsResponse] = await Promise.all([
+      const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
         api.compliance(userId, weekStart),
         api.stats(userId, period, new Date().getFullYear()),
+        api.establishments(userId),
       ]);
       setCompliance(complianceResponse);
       setStats(statsResponse.rows);
+      setEstablishments(establishmentsResponse);
       setMessage("Panel admin actualizado.");
     } catch {
       setCompliance(demoCompliance);
       setStats(demoStats);
+      setEstablishments(demoEstablishments);
       setMessage("Backend no disponible: panel admin en modo demo.");
     }
+  }
+
+  async function createEstablishment(payload: {
+    parcel_number: string;
+    accommodation_name: string;
+    address: string;
+    phone: string;
+  }) {
+    if (!user) return;
+    try {
+      const created = await api.createEstablishment(user.id, payload);
+      setLastCreatedId(created.id);
+      setEstablishments((current) => [...current, created].sort((a, b) =>
+        a.establishment_name.localeCompare(b.establishment_name),
+      ));
+      await loadAdminData(user.id);
+      setLastCreatedId(created.id);
+      setMessage(`Establecimiento creado. Compartile este ID de acceso: ${created.id}`);
+    } catch {
+      setMessage("No se pudo crear el establecimiento. Revisa que el ID no exista y que la API este activa.");
+    }
+  }
+
+  async function openEstablishmentProfile(establishment: EstablishmentSummary) {
+    setSelectedProfile(establishment);
+    if (!user) {
+      setSelectedProfileEntries([]);
+      return;
+    }
+
+    try {
+      setSelectedProfileEntries(await api.entries(user.id, establishment.id));
+    } catch {
+      setSelectedProfileEntries(demoEntries.filter((entry) => entry.establishment_id === establishment.id));
+    }
+  }
+
+  function openComplianceProfile(item: Compliance) {
+    const establishment = establishments.find((candidate) => candidate.id === item.establishment_id) ?? {
+      id: item.establishment_id,
+      establishment_name: item.establishment_name,
+      accommodation_name: item.establishment_name,
+      whatsapp: item.whatsapp ?? "",
+    };
+    void openEstablishmentProfile(establishment);
   }
 
   if (!user) {
@@ -122,12 +223,49 @@ export default function Home() {
             </p>
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
-            {demoUsers.map((demoUser) => (
-              <button key={demoUser.id} className="login-button" onClick={() => login(demoUser.id)}>
-                {demoUser.role === "admin" ? <Users size={20} /> : <CalendarDays size={20} />}
-                <span>{demoUser.display_name}</span>
+            <form className="login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
+              <div className="panel-title">
+                <Users size={21} />
+                <h2>Admin MEB</h2>
+              </div>
+              <label>
+                Usuario
+                <input value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} />
+              </label>
+              <label>
+                Contrasena
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                />
+              </label>
+              <button className="primary-button" type="submit">
+                <LogIn size={18} />
+                <span>Ingresar admin</span>
               </button>
-            ))}
+            </form>
+            <form className="login-card" onSubmit={(event) => { event.preventDefault(); login(loginId); }}>
+              <div className="panel-title">
+                <Building2 size={21} />
+                <h2>Emprendimiento</h2>
+              </div>
+              <label>
+                ID numerico
+                <input
+                  aria-label="ID de emprendimiento"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="10000001"
+                  value={loginId}
+                  onChange={(event) => setLoginId(event.target.value.replace(/\D/g, ""))}
+                />
+              </label>
+              <button className="secondary-button" type="submit">
+                <LogIn size={18} />
+                <span>Ingresar</span>
+              </button>
+            </form>
           </div>
         </section>
       </main>
@@ -157,6 +295,17 @@ export default function Home() {
           onPeriodChange={setPeriod}
           onWeekChange={setWeekStart}
           onRefresh={() => loadAdminData()}
+          establishments={establishments}
+          lastCreatedId={lastCreatedId}
+          selectedProfile={selectedProfile}
+          selectedProfileEntries={selectedProfileEntries}
+          onCreateEstablishment={createEstablishment}
+          onOpenEstablishment={openEstablishmentProfile}
+          onOpenCompliance={openComplianceProfile}
+          onCloseProfile={() => {
+            setSelectedProfile(null);
+            setSelectedProfileEntries([]);
+          }}
         />
       ) : (
         <EstablishmentPanel
@@ -277,9 +426,85 @@ function AdminPanel(props: {
   onPeriodChange: (value: string) => void;
   onWeekChange: (value: string) => void;
   onRefresh: () => void;
+  establishments: EstablishmentSummary[];
+  lastCreatedId: string;
+  selectedProfile: EstablishmentSummary | null;
+  selectedProfileEntries: Entry[];
+  onCreateEstablishment: (payload: {
+    parcel_number: string;
+    accommodation_name: string;
+    address: string;
+    phone: string;
+  }) => void;
+  onOpenEstablishment: (establishment: EstablishmentSummary) => void;
+  onOpenCompliance: (item: Compliance) => void;
+  onCloseProfile: () => void;
 }) {
+  const [newParcelNumber, setNewParcelNumber] = useState("");
+  const [newAccommodationName, setNewAccommodationName] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+
+  function submitEstablishment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    props.onCreateEstablishment({
+      parcel_number: newParcelNumber.trim(),
+      accommodation_name: newAccommodationName.trim(),
+      address: newAddress.trim(),
+      phone: newPhone.trim(),
+    });
+    setNewParcelNumber("");
+    setNewAccommodationName("");
+    setNewAddress("");
+    setNewPhone("");
+  }
+
+  async function copyLastId() {
+    if (!props.lastCreatedId) return;
+    try {
+      await navigator.clipboard.writeText(props.lastCreatedId);
+    } catch {
+      return;
+    }
+  }
+
   return (
-    <section className="admin-grid">
+    <section className="admin-layout">
+      {props.selectedProfile ? (
+        <section className="panel profile-panel">
+          <button className="secondary-button back-button" type="button" onClick={props.onCloseProfile}>
+            <ArrowLeft size={18} />
+            <span>Volver</span>
+          </button>
+          <div className="profile-head">
+            <div>
+              <p className="eyebrow">Perfil de establecimiento</p>
+              <h2>{props.selectedProfile.accommodation_name ?? props.selectedProfile.establishment_name}</h2>
+            </div>
+            <strong className="profile-id">{props.selectedProfile.id}</strong>
+          </div>
+          <div className="profile-grid">
+            <ProfileField label="Nro. de parcela" value={props.selectedProfile.parcel_number} />
+            <ProfileField label="Direccion" value={props.selectedProfile.address} />
+            <ProfileField label="Telefono" value={props.selectedProfile.phone ?? props.selectedProfile.whatsapp} />
+          </div>
+          <div className="table">
+            <div className="table-row table-head">
+              <span>Semana</span>
+              <span>Plazas</span>
+              <span>Unidades</span>
+            </div>
+            {props.selectedProfileEntries.map((entry) => (
+              <div className="table-row profile-entry-row" key={entry.id}>
+                <span>{entry.week_start}</span>
+                <strong>{entry.occupied_places}</strong>
+                <strong>{entry.occupied_units}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <div className="admin-grid">
       <div className="panel">
         <div className="panel-title">
           <BarChart3 size={21} />
@@ -323,7 +548,7 @@ function AdminPanel(props: {
         </div>
         <div className="compliance-list">
           {props.compliance.map((item) => (
-            <div className="compliance-item" key={item.establishment_id}>
+            <button className="compliance-item clickable-row" key={item.establishment_id} onClick={() => props.onOpenCompliance(item)}>
               <div>
                 <strong>{item.establishment_name}</strong>
                 <span>{item.completed ? "Completo" : `Falta: ${item.missing_fields.join(", ")}`}</span>
@@ -331,17 +556,105 @@ function AdminPanel(props: {
               <span className={item.completed ? "pill ok" : "pill warn"}>
                 {item.completed ? "OK" : "Pendiente"}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
+      </div>
+
+      <section className="panel">
+        <div className="panel-title">
+          <Plus size={21} />
+          <h2>Establecimientos</h2>
+        </div>
+        <form className="establishment-form" onSubmit={submitEstablishment}>
+          <label>
+            Nro. de parcela
+            <input
+              placeholder="101"
+              value={newParcelNumber}
+              onChange={(event) => setNewParcelNumber(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Nombre de alojamiento
+            <input
+              placeholder="Hotel Centro"
+              value={newAccommodationName}
+              onChange={(event) => setNewAccommodationName(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Direccion
+            <input
+              placeholder="Av. Principal 123"
+              value={newAddress}
+              onChange={(event) => setNewAddress(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Telefono
+            <input
+              placeholder="+549..."
+              value={newPhone}
+              onChange={(event) => setNewPhone(event.target.value)}
+              required
+            />
+          </label>
+          <button className="primary-button" type="submit">
+            <Plus size={18} />
+            <span>Crear</span>
+          </button>
+        </form>
+        {props.lastCreatedId ? (
+          <div className="generated-id">
+            <div>
+              <span>Ultimo ID generado</span>
+              <strong>{props.lastCreatedId}</strong>
+            </div>
+            <button className="icon-button" type="button" onClick={copyLastId} title="Copiar ID">
+              <Copy size={18} />
+            </button>
+          </div>
+        ) : null}
+        <div className="table establishment-table">
+          <div className="table-row table-head">
+            <span>ID</span>
+            <span>Parcela</span>
+            <span>Alojamiento</span>
+            <span>Direccion</span>
+            <span>Telefono</span>
+          </div>
+          {props.establishments.map((item) => (
+            <button className="table-row clickable-row" key={item.id} onClick={() => props.onOpenEstablishment(item)}>
+              <span>{item.id}</span>
+              <span>{item.parcel_number ?? "-"}</span>
+              <strong>{item.accommodation_name ?? item.establishment_name}</strong>
+              <span>{item.address ?? "-"}</span>
+              <span>{item.phone ?? item.whatsapp}</span>
+            </button>
+          ))}
+        </div>
+      </section>
     </section>
+  );
+}
+
+function ProfileField(props: { label: string; value?: string }) {
+  return (
+    <div className="profile-field">
+      <span>{props.label}</span>
+      <strong>{props.value || "-"}</strong>
+    </div>
   );
 }
 
 const demoCompliance: Compliance[] = [
   {
-    establishment_id: "hotel-sol",
+    establishment_id: "10000001",
     establishment_name: "Hotel Sol",
     whatsapp: "+5492901000001",
     week_start: currentWeek,
@@ -350,7 +663,7 @@ const demoCompliance: Compliance[] = [
     status: "complete",
   },
   {
-    establishment_id: "cabanas-rio",
+    establishment_id: "10000002",
     establishment_name: "Cabanas Rio",
     whatsapp: "+5492901000002",
     week_start: currentWeek,
@@ -363,4 +676,25 @@ const demoCompliance: Compliance[] = [
 const demoStats: StatsRow[] = [
   { label: "2026-05", occupied_places: 120, occupied_units: 48, entries: 6 },
   { label: "2026-06", occupied_places: 42, occupied_units: 16, entries: 2 },
+];
+
+const demoEstablishments: EstablishmentSummary[] = [
+  {
+    id: "10000001",
+    establishment_name: "Hotel Sol",
+    accommodation_name: "Hotel Sol",
+    parcel_number: "101",
+    address: "Av. Principal 123",
+    phone: "+5492901000001",
+    whatsapp: "+5492901000001",
+  },
+  {
+    id: "10000002",
+    establishment_name: "Cabanas Rio",
+    accommodation_name: "Cabanas Rio",
+    parcel_number: "204",
+    address: "Costanera 456",
+    phone: "+5492901000002",
+    whatsapp: "+5492901000002",
+  },
 ];

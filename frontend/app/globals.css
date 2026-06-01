@@ -87,6 +87,13 @@ h2 {
   gap: 12px;
 }
 
+.login-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 18px;
+}
+
 .login-button,
 .primary-button,
 .secondary-button,
@@ -192,6 +199,11 @@ h2 {
   grid-template-columns: 1.25fr 0.75fr;
 }
 
+.admin-layout {
+  display: grid;
+  gap: 18px;
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -236,6 +248,35 @@ form {
   gap: 14px;
 }
 
+.establishment-form {
+  grid-template-columns: 0.7fr 1.1fr 1.2fr 0.9fr 130px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.generated-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef5ff;
+  padding: 12px 14px;
+}
+
+.generated-id div {
+  display: grid;
+  gap: 4px;
+}
+
+.generated-id span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .field-grid,
 .toolbar {
   display: grid;
@@ -266,6 +307,10 @@ form {
   grid-template-columns: 1.4fr 0.8fr 0.8fr;
 }
 
+.establishment-table .table-row {
+  grid-template-columns: 0.9fr 0.65fr 1.1fr 1.3fr 0.9fr;
+}
+
 .table-head {
   color: var(--muted);
   font-size: 13px;
@@ -282,8 +327,83 @@ form {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   min-height: 64px;
+  border: 0;
   border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0;
+  text-align: left;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: #f6f8fb;
+}
+
+button.table-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  padding: 0;
+}
+
+.profile-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.back-button {
+  width: fit-content;
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-head h2 {
+  font-size: 28px;
+}
+
+.profile-id {
+  border-radius: 8px;
+  background: #eef5ff;
+  color: var(--blue);
+  padding: 9px 12px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.profile-field {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.profile-field span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-entry-row {
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
 }
 
 .compliance-item div {
@@ -320,7 +440,14 @@ form {
   }
 
   .field-grid,
-  .toolbar {
+  .toolbar,
+  .establishment-form {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-head,
+  .profile-grid {
+    display: grid;
     grid-template-columns: 1fr;
   }
 

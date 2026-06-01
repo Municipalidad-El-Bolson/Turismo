@@ -65,9 +65,13 @@ Backend: http://localhost:8000/docs
 
 El backend crea usuarios demo al iniciar si no existen:
 
-- Admin MEB: `meb-admin`
-- Establecimiento: `hotel-sol`
-- Establecimiento: `cabanas-rio`
+- Admin MEB: usuario `admin`, contrasena `admin123`
+- Establecimiento: ID `10000001`
+- Establecimiento: ID `10000002`
+
+Los nuevos establecimientos se crean desde el panel admin cargando nro. de parcela, nombre de alojamiento, direccion y telefono. El sistema genera automaticamente un ID aleatorio solo numerico; ese ID es el acceso que usa el establecimiento para cargar sus datos.
+
+Si ya habias levantado MongoDB antes de cambiar a IDs numericos, puede que queden registros demo viejos en la base. Para arrancar limpio en desarrollo podes recrear el volumen de Docker.
 
 ## Proximos pasos sugeridos
 

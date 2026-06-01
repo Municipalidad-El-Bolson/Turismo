@@ -15,14 +15,27 @@ class User(BaseModel):
     display_name: str
     whatsapp: str | None = None
     establishment_name: str | None = None
+    parcel_number: str | None = None
+    accommodation_name: str | None = None
+    address: str | None = None
+    phone: str | None = None
 
 
 class LoginRequest(BaseModel):
-    user_id: str = Field(min_length=1)
+    user_id: str | None = None
+    username: str | None = None
+    password: str | None = None
 
 
 class LoginResponse(BaseModel):
     user: User
+
+
+class EstablishmentCreate(BaseModel):
+    parcel_number: str = Field(min_length=1)
+    accommodation_name: str = Field(min_length=2)
+    address: str = Field(min_length=3)
+    phone: str = Field(min_length=6)
 
 
 class OccupancyEntryCreate(BaseModel):
@@ -44,6 +57,10 @@ class EstablishmentSummary(BaseModel):
     id: str
     establishment_name: str
     whatsapp: str
+    parcel_number: str | None = None
+    accommodation_name: str | None = None
+    address: str | None = None
+    phone: str | None = None
 
 
 class ComplianceStatus(BaseModel):

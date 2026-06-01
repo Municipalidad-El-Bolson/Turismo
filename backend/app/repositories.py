@@ -1,18 +1,29 @@
 from datetime import UTC, datetime
+from hmac import compare_digest
+from secrets import randbelow
 
 from pymongo import ASCENDING
+from pymongo.errors import DuplicateKeyError
 
 from .database import get_database
-from .schemas import OccupancyEntryCreate, UserRole
+from .schemas import EstablishmentCreate, OccupancyEntryCreate, UserRole
+
+def generate_establishment_id() -> str:
+    return str(10_000_000 + randbelow(90_000_000))
 
 
 def serialize_user(document: dict) -> dict:
+    establishment_name = document.get("establishment_name") or document.get("accommodation_name")
     return {
         "id": document["_id"],
         "role": document["role"],
         "display_name": document["display_name"],
         "whatsapp": document.get("whatsapp"),
-        "establishment_name": document.get("establishment_name"),
+        "establishment_name": establishment_name,
+        "parcel_number": document.get("parcel_number"),
+        "accommodation_name": document.get("accommodation_name") or establishment_name,
+        "address": document.get("address"),
+        "phone": document.get("phone"),
     }
 
 
@@ -41,28 +52,45 @@ async def ensure_indexes() -> None:
 
 async def seed_demo_data() -> None:
     db = get_database()
-    if await db.users.count_documents({}) > 0:
+    had_users = await db.users.count_documents({}) > 0
+    await db.users.update_one(
+        {"_id": "meb-admin"},
+        {
+            "$set": {
+                "role": UserRole.ADMIN,
+                "display_name": "Admin MEB",
+                "username": "admin",
+                "password": "admin123",
+            }
+        },
+        upsert=True,
+    )
+
+    if had_users:
         return
 
     await db.users.insert_many(
         [
             {
-                "_id": "meb-admin",
-                "role": UserRole.ADMIN,
-                "display_name": "Admin MEB",
-            },
-            {
-                "_id": "hotel-sol",
+                "_id": "10000001",
                 "role": UserRole.ESTABLISHMENT,
                 "display_name": "Hotel Sol",
                 "establishment_name": "Hotel Sol",
+                "accommodation_name": "Hotel Sol",
+                "parcel_number": "101",
+                "address": "Av. Principal 123",
+                "phone": "+5492901000001",
                 "whatsapp": "+5492901000001",
             },
             {
-                "_id": "cabanas-rio",
+                "_id": "10000002",
                 "role": UserRole.ESTABLISHMENT,
                 "display_name": "Cabanas Rio",
                 "establishment_name": "Cabanas Rio",
+                "accommodation_name": "Cabanas Rio",
+                "parcel_number": "204",
+                "address": "Costanera 456",
+                "phone": "+5492901000002",
                 "whatsapp": "+5492901000002",
             },
         ]
@@ -73,9 +101,39 @@ async def find_user(user_id: str) -> dict | None:
     return await get_database().users.find_one({"_id": user_id})
 
 
+async def find_admin_by_credentials(username: str, password: str) -> dict | None:
+    user = await get_database().users.find_one({"role": UserRole.ADMIN, "username": username})
+    if not user or not compare_digest(user.get("password", ""), password):
+        return None
+    return user
+
+
 async def list_establishments() -> list[dict]:
     cursor = get_database().users.find({"role": UserRole.ESTABLISHMENT}).sort("establishment_name", ASCENDING)
     return [serialize_user(document) async for document in cursor]
+
+
+async def create_establishment(payload: EstablishmentCreate) -> dict:
+    db = get_database()
+    for _ in range(5):
+        document = {
+            "_id": generate_establishment_id(),
+            "role": UserRole.ESTABLISHMENT,
+            "display_name": payload.accommodation_name,
+            "establishment_name": payload.accommodation_name,
+            "accommodation_name": payload.accommodation_name,
+            "parcel_number": payload.parcel_number,
+            "address": payload.address,
+            "phone": payload.phone,
+            "whatsapp": payload.phone,
+        }
+        try:
+            await db.users.insert_one(document)
+        except DuplicateKeyError:
+            continue
+        return serialize_user(document)
+
+    raise DuplicateKeyError("Could not generate a unique establishment ID")
 
 
 async def upsert_occupancy_entry(establishment_id: str, payload: OccupancyEntryCreate) -> dict:

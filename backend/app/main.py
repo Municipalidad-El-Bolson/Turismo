@@ -2,12 +2,15 @@ from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pymongo.errors import DuplicateKeyError
 
 from .config import settings
 from .database import close_database, connect_database
 from .repositories import (
     aggregate_stats,
+    create_establishment,
     ensure_indexes,
+    find_admin_by_credentials,
     find_entry,
     find_user,
     list_entries,
@@ -18,6 +21,7 @@ from .repositories import (
 )
 from .schemas import (
     ComplianceStatus,
+    EstablishmentCreate,
     EstablishmentSummary,
     LoginRequest,
     LoginResponse,
@@ -71,7 +75,17 @@ async def health() -> dict[str, str]:
 
 @app.post("/auth/login", response_model=LoginResponse)
 async def login(payload: LoginRequest) -> LoginResponse:
-    user = await find_user(payload.user_id)
+    if payload.username and payload.password:
+        user = await find_admin_by_credentials(payload.username, payload.password)
+    elif payload.user_id:
+        if not payload.user_id.isdigit():
+            raise HTTPException(status_code=400, detail="Establishment ID must be numeric")
+        user = await find_user(payload.user_id)
+        if user and user["role"] != UserRole.ESTABLISHMENT:
+            raise HTTPException(status_code=403, detail="Use admin credentials")
+    else:
+        raise HTTPException(status_code=400, detail="Missing login credentials")
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return LoginResponse(user=User(**serialize_user(user)))
@@ -84,9 +98,34 @@ async def establishments(_: User = Depends(require_admin)) -> list[Establishment
             id=user["id"],
             establishment_name=user["establishment_name"] or user["display_name"],
             whatsapp=user["whatsapp"] or "",
+            parcel_number=user["parcel_number"],
+            accommodation_name=user["accommodation_name"],
+            address=user["address"],
+            phone=user["phone"],
         )
         for user in await list_establishments()
     ]
+
+
+@app.post("/admin/establishments", response_model=EstablishmentSummary, status_code=201)
+async def add_establishment(
+    payload: EstablishmentCreate,
+    _: User = Depends(require_admin),
+) -> EstablishmentSummary:
+    try:
+        user = await create_establishment(payload)
+    except DuplicateKeyError as exc:
+        raise HTTPException(status_code=409, detail="Establishment ID already exists") from exc
+
+    return EstablishmentSummary(
+        id=user["id"],
+        establishment_name=user["establishment_name"] or user["display_name"],
+        whatsapp=user["whatsapp"] or "",
+        parcel_number=user["parcel_number"],
+        accommodation_name=user["accommodation_name"],
+        address=user["address"],
+        phone=user["phone"],
+    )
 
 
 @app.get("/establishments/{establishment_id}/entries", response_model=list[OccupancyEntry])
