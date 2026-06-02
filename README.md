@@ -73,6 +73,31 @@ Los nuevos establecimientos se crean desde el panel admin cargando nro. de parce
 
 Si ya habias levantado MongoDB antes de cambiar a IDs numericos, puede que queden registros demo viejos en la base. Para arrancar limpio en desarrollo podes recrear el volumen de Docker.
 
+La lista base de turismo 2026 se carga automaticamente desde `backend/app/establishments_seed.json`. Los telefonos locales `2944...` y `0294...` se normalizan como `+542944...` para prepararlos para WhatsApp.
+
+## WhatsApp
+
+La app trae una integracion preparada para WhatsApp Cloud API de Meta.
+
+Por defecto corre en modo simulacion:
+
+```env
+WHATSAPP_PROVIDER=console
+```
+
+Para enviar mensajes reales, configurar:
+
+```env
+WHATSAPP_PROVIDER=meta
+WHATSAPP_ACCESS_TOKEN=token_de_meta
+WHATSAPP_PHONE_NUMBER_ID=id_del_numero_de_whatsapp
+WHATSAPP_GRAPH_VERSION=v23.0
+```
+
+Desde el panel admin se puede enviar un recordatorio individual desde Cumplimiento, o recordar a todos los pendientes de la semana seleccionada.
+
+Nota: para mensajes iniciados por la organizacion fuera de la ventana de atencion de WhatsApp, Meta puede requerir plantillas aprobadas. El servicio quedo encapsulado en `backend/app/whatsapp.py` para cambiar el texto libre por plantillas cuando tengas la cuenta configurada.
+
 ## Proximos pasos sugeridos
 
 - Agregar autenticacion real con contrasenas/JWT.

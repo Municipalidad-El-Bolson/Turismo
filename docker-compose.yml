@@ -21,6 +21,10 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DB: turismo
       ALLOWED_ORIGINS: http://localhost:3000
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-console}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v23.0}
     depends_on:
       - mongodb
 

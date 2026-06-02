@@ -10,6 +10,9 @@ export type User = {
   accommodation_name?: string;
   address?: string;
   phone?: string;
+  units?: number;
+  places?: number;
+  accommodation_type?: string;
 };
 
 export type Entry = {
@@ -41,6 +44,43 @@ export type StatsRow = {
   entries: number;
 };
 
+export type TypeStatsRow = {
+  accommodation_type: string;
+  establishments: number;
+  participant_establishments: number;
+  participation_percent: number;
+  expected_responses: number;
+  response_count: number;
+  missing_responses: number;
+  response_rate_percent: number;
+  occupied_places: number;
+  available_places: number;
+  occupancy_rate_percent: number;
+  occupied_units: number;
+  available_units: number;
+  unit_occupancy_percent: number;
+};
+
+export type StatsResponse = {
+  period: string;
+  year?: number;
+  month?: number;
+  week_start?: string;
+  weeks: number;
+  rows: StatsRow[];
+  type_rows: TypeStatsRow[];
+};
+
+export type WhatsAppSendResult = {
+  establishment_id: string;
+  establishment_name: string;
+  to: string;
+  sent: boolean;
+  dry_run: boolean;
+  message: string;
+  detail?: unknown;
+};
+
 export type EstablishmentSummary = {
   id: string;
   establishment_name: string;
@@ -49,6 +89,19 @@ export type EstablishmentSummary = {
   accommodation_name?: string;
   address?: string;
   phone?: string;
+  units?: number;
+  places?: number;
+  accommodation_type?: string;
+};
+
+export type EstablishmentPayload = {
+  parcel_number: string;
+  accommodation_name: string;
+  address: string;
+  phone: string;
+  units?: number;
+  places?: number;
+  accommodation_type?: string;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -90,20 +143,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  compliance: (userId: string, weekStart: string) =>
-    request<Compliance[]>(`/admin/compliance?userId=${userId}&week_start=${weekStart}`),
-  stats: (userId: string, period: string, year: number) =>
-    request<{ period: string; rows: StatsRow[] }>(`/admin/stats?userId=${userId}&period=${period}&year=${year}`),
+  compliance: (userId: string, weekStart: string, compliancePeriod: string) =>
+    request<Compliance[]>(
+      `/admin/compliance?userId=${userId}&week_start=${weekStart}&compliance_period=${compliancePeriod}`,
+    ),
+  stats: (userId: string, period: string, year: number, month: number, weekStart: string) =>
+    request<StatsResponse>(
+      `/admin/stats?userId=${userId}&period=${period}&year=${year}&month=${month}&week_start=${weekStart}`,
+    ),
   establishments: (userId: string) =>
     request<EstablishmentSummary[]>(`/establishments?userId=${userId}`),
   createEstablishment: (
     userId: string,
-    payload: { parcel_number: string; accommodation_name: string; address: string; phone: string },
+    payload: EstablishmentPayload,
   ) =>
     request<EstablishmentSummary>(`/admin/establishments?userId=${userId}`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  updateEstablishment: (userId: string, establishmentId: string, payload: EstablishmentPayload) =>
+    request<EstablishmentSummary>(`/admin/establishments/${establishmentId}?userId=${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteEstablishment: (userId: string, establishmentId: string) =>
+    request<void>(`/admin/establishments/${establishmentId}?userId=${userId}`, {
+      method: "DELETE",
+    }),
+  deleteEntry: (userId: string, establishmentId: string, weekStart: string) =>
+    request<void>(`/establishments/${establishmentId}/entries/${weekStart}?userId=${userId}`, {
+      method: "DELETE",
+    }),
+  sendReminder: (userId: string, establishmentId: string, weekStart: string) =>
+    request<WhatsAppSendResult>(
+      `/admin/whatsapp/reminders/${establishmentId}?userId=${userId}&week_start=${weekStart}`,
+      { method: "POST" },
+    ),
+  sendMissingReminders: (userId: string, weekStart: string, compliancePeriod: string) =>
+    request<{ week_start: string; results: WhatsAppSendResult[] }>(
+      `/admin/whatsapp/reminders?userId=${userId}&week_start=${weekStart}&compliance_period=${compliancePeriod}`,
+      { method: "POST" },
+    ),
 };
 
 export const demoUsers: User[] = [

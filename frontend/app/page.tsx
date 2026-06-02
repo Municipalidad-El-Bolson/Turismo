@@ -10,18 +10,24 @@ import {
   CheckCircle2,
   Copy,
   ClipboardList,
+  Pencil,
+  Trash2,
   LogIn,
+  MessageSquareText,
   Plus,
   LogOut,
   MessageCircle,
   Save,
+  Search,
   Users,
 } from "lucide-react";
 import {
   Compliance,
   Entry,
   EstablishmentSummary,
-  StatsRow,
+  EstablishmentPayload,
+  StatsResponse,
+  TypeStatsRow,
   User,
   api,
   demoEntries,
@@ -38,11 +44,80 @@ function mondayOf(date: Date) {
 
 const currentWeek = mondayOf(new Date());
 
+function parseDateInput(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function calendarDaysFor(value: string) {
+  const selected = parseDateInput(value);
+  const firstDay = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  const lastDay = new Date(selected.getFullYear(), selected.getMonth() + 1, 0);
+  const leadingBlanks = (firstDay.getDay() + 6) % 7;
+  const days: Array<string | null> = Array.from({ length: leadingBlanks }, () => null);
+  for (let day = 1; day <= lastDay.getDate(); day += 1) {
+    days.push(formatDateInput(new Date(selected.getFullYear(), selected.getMonth(), day)));
+  }
+  return days;
+}
+
+const missingFieldLabels: Record<string, string> = {
+  occupied_places: "plazas ocupadas",
+  occupied_units: "unidades ocupadas",
+  period_entries: "carga del periodo",
+};
+
+const accommodationTypes = [
+  "Hoteles / hosterias",
+  "Apart / cabanas",
+  "B&B / hospedajes",
+  "Hostels",
+  "Campings / dormis",
+  "Otros",
+];
+
+const chartColors = ["#2457a6", "#d64d3b", "#e3a519", "#1f7a4d", "#e86f2d", "#55606f"];
+
+const monthOptions = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+];
+
+function yearOptions() {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 8 }, (_, index) => currentYear - 5 + index);
+}
+
+function formatMissingFields(fields: string[]) {
+  return fields.map((field) => missingFieldLabels[field] ?? field).join(", ");
+}
+
+function LogoMark(props: { className?: string }) {
+  return <img className={props.className ?? "brand-logo"} src="/el-bolson-turismo-logo.avif" alt="Turismo El Bolson" />;
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [entries, setEntries] = useState<Entry[]>(demoEntries);
   const [compliance, setCompliance] = useState<Compliance[]>([]);
-  const [stats, setStats] = useState<StatsRow[]>([]);
+  const [stats, setStats] = useState<StatsResponse>(demoStats);
   const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
   const [lastCreatedId, setLastCreatedId] = useState("");
   const [loginId, setLoginId] = useState("");
@@ -55,6 +130,10 @@ export default function Home() {
   const [occupiedUnits, setOccupiedUnits] = useState(0);
   const [notes, setNotes] = useState("");
   const [period, setPeriod] = useState("monthly");
+  const [compliancePeriod, setCompliancePeriod] = useState("week");
+  const [statsYear, setStatsYear] = useState(new Date().getFullYear());
+  const [statsMonth, setStatsMonth] = useState(new Date().getMonth() + 1);
+  const [statsWeekStart, setStatsWeekStart] = useState(currentWeek);
   const [message, setMessage] = useState("Modo demo activo hasta conectar el backend.");
 
   const isAdmin = user?.role === "admin";
@@ -147,15 +226,27 @@ export default function Home() {
     }
   }
 
+  async function deleteEntry(weekStartToDelete: string) {
+    if (!user) return;
+    try {
+      await api.deleteEntry(user.id, user.id, weekStartToDelete);
+      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete));
+      setMessage("Carga eliminada.");
+    } catch {
+      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete));
+      setMessage("Carga eliminada en modo demo.");
+    }
+  }
+
   async function loadAdminData(userId = user?.id ?? "meb-admin") {
     try {
       const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
-        api.compliance(userId, weekStart),
-        api.stats(userId, period, new Date().getFullYear()),
+        api.compliance(userId, weekStart, compliancePeriod),
+        api.stats(userId, period, statsYear, statsMonth, statsWeekStart),
         api.establishments(userId),
       ]);
       setCompliance(complianceResponse);
-      setStats(statsResponse.rows);
+      setStats(statsResponse);
       setEstablishments(establishmentsResponse);
       setMessage("Panel admin actualizado.");
     } catch {
@@ -166,12 +257,7 @@ export default function Home() {
     }
   }
 
-  async function createEstablishment(payload: {
-    parcel_number: string;
-    accommodation_name: string;
-    address: string;
-    phone: string;
-  }) {
+  async function createEstablishment(payload: EstablishmentPayload) {
     if (!user) return;
     try {
       const created = await api.createEstablishment(user.id, payload);
@@ -187,6 +273,36 @@ export default function Home() {
     }
   }
 
+  async function updateEstablishment(establishmentId: string, payload: EstablishmentPayload) {
+    if (!user) return;
+    try {
+      const updated = await api.updateEstablishment(user.id, establishmentId, payload);
+      setEstablishments((current) => current.map((item) => item.id === establishmentId ? updated : item));
+      setSelectedProfile(updated);
+      setMessage("Establecimiento actualizado.");
+      await loadAdminData(user.id);
+      setSelectedProfile(updated);
+    } catch {
+      setMessage("No se pudo actualizar el establecimiento.");
+    }
+  }
+
+  async function deleteEstablishment(establishmentId: string) {
+    if (!user) return;
+    const confirmed = window.confirm("Esto elimina el establecimiento y todas sus cargas. ¿Continuar?");
+    if (!confirmed) return;
+    try {
+      await api.deleteEstablishment(user.id, establishmentId);
+      setEstablishments((current) => current.filter((item) => item.id !== establishmentId));
+      setSelectedProfile(null);
+      setSelectedProfileEntries([]);
+      setMessage("Establecimiento eliminado.");
+      await loadAdminData(user.id);
+    } catch {
+      setMessage("No se pudo eliminar el establecimiento.");
+    }
+  }
+
   async function openEstablishmentProfile(establishment: EstablishmentSummary) {
     setSelectedProfile(establishment);
     if (!user) {
@@ -198,6 +314,28 @@ export default function Home() {
       setSelectedProfileEntries(await api.entries(user.id, establishment.id));
     } catch {
       setSelectedProfileEntries(demoEntries.filter((entry) => entry.establishment_id === establishment.id));
+    }
+  }
+
+  async function sendReminder(establishmentId: string) {
+    if (!user) return;
+    try {
+      const result = await api.sendReminder(user.id, establishmentId, weekStart);
+      setMessage(result.dry_run ? `Simulacion WhatsApp para ${result.to || establishmentId}.` : `WhatsApp enviado a ${result.to}.`);
+    } catch {
+      setMessage("No se pudo enviar el recordatorio de WhatsApp.");
+    }
+  }
+
+  async function sendMissingReminders() {
+    if (!user) return;
+    try {
+      const result = await api.sendMissingReminders(user.id, weekStart, compliancePeriod);
+      const sent = result.results.filter((item) => item.sent).length;
+      const dryRun = result.results.filter((item) => item.dry_run).length;
+      setMessage(`Recordatorios procesados: ${result.results.length}. Enviados: ${sent}. Simulados: ${dryRun}.`);
+    } catch {
+      setMessage("No se pudieron enviar los recordatorios pendientes.");
     }
   }
 
@@ -216,7 +354,10 @@ export default function Home() {
       <main className="shell">
         <section className="login">
           <div>
-            <p className="eyebrow">Turismo MEB</p>
+            <div className="brand-lockup">
+              <LogoMark className="brand-logo hero-logo" />
+              <p className="eyebrow">Turismo MEB</p>
+            </div>
             <h1>Control de carga y ocupacion semanal</h1>
             <p className="lede">
               Ingreso simple para establecimientos y tablero de seguimiento para usuarios MEB.
@@ -224,9 +365,12 @@ export default function Home() {
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
             <form className="login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
-              <div className="panel-title">
-                <Users size={21} />
-                <h2>Admin MEB</h2>
+              <div className="panel-title card-title">
+                <div>
+                  <Users size={21} />
+                  <h2>Admin MEB</h2>
+                </div>
+                <LogoMark className="brand-logo card-logo" />
               </div>
               <label>
                 Usuario
@@ -246,9 +390,12 @@ export default function Home() {
               </button>
             </form>
             <form className="login-card" onSubmit={(event) => { event.preventDefault(); login(loginId); }}>
-              <div className="panel-title">
-                <Building2 size={21} />
-                <h2>Emprendimiento</h2>
+              <div className="panel-title card-title">
+                <div>
+                  <Building2 size={21} />
+                  <h2>Emprendimiento</h2>
+                </div>
+                <LogoMark className="brand-logo card-logo" />
               </div>
               <label>
                 ID numerico
@@ -275,9 +422,12 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Turismo MEB</p>
-          <h1>{isAdmin ? "Panel admin" : user.establishment_name}</h1>
+        <div className="topbar-brand">
+          <LogoMark className="brand-logo topbar-logo" />
+          <div>
+            <p className="eyebrow">Turismo MEB</p>
+            <h1>{isAdmin ? "Panel admin" : user.establishment_name}</h1>
+          </div>
         </div>
         <button className="icon-button" onClick={() => setUser(null)} title="Salir">
           <LogOut size={19} />
@@ -291,17 +441,29 @@ export default function Home() {
           compliance={compliance}
           stats={stats}
           period={period}
+          compliancePeriod={compliancePeriod}
           weekStart={weekStart}
+          statsYear={statsYear}
+          statsMonth={statsMonth}
+          statsWeekStart={statsWeekStart}
           onPeriodChange={setPeriod}
+          onCompliancePeriodChange={setCompliancePeriod}
           onWeekChange={setWeekStart}
+          onStatsYearChange={setStatsYear}
+          onStatsMonthChange={setStatsMonth}
+          onStatsWeekStartChange={setStatsWeekStart}
           onRefresh={() => loadAdminData()}
           establishments={establishments}
           lastCreatedId={lastCreatedId}
           selectedProfile={selectedProfile}
           selectedProfileEntries={selectedProfileEntries}
           onCreateEstablishment={createEstablishment}
+          onUpdateEstablishment={updateEstablishment}
+          onDeleteEstablishment={deleteEstablishment}
           onOpenEstablishment={openEstablishmentProfile}
           onOpenCompliance={openComplianceProfile}
+          onSendReminder={sendReminder}
+          onSendMissingReminders={sendMissingReminders}
           onCloseProfile={() => {
             setSelectedProfile(null);
             setSelectedProfileEntries([]);
@@ -319,6 +481,21 @@ export default function Home() {
           onUnitsChange={setOccupiedUnits}
           onNotesChange={setNotes}
           onSave={saveEntry}
+          onSelectEmptyDate={(date) => {
+            setWeekStart(date);
+            setOccupiedPlaces(0);
+            setOccupiedUnits(0);
+            setNotes("");
+            setMessage("Dia seleccionado para cargar.");
+          }}
+          onEdit={(entry) => {
+            setWeekStart(entry.week_start);
+            setOccupiedPlaces(entry.occupied_places);
+            setOccupiedUnits(entry.occupied_units);
+            setNotes(entry.notes ?? "");
+            setMessage("Carga lista para editar.");
+          }}
+          onDelete={deleteEntry}
         />
       )}
     </main>
@@ -336,9 +513,17 @@ function EstablishmentPanel(props: {
   onUnitsChange: (value: number) => void;
   onNotesChange: (value: string) => void;
   onSave: () => void;
+  onSelectEmptyDate: (date: string) => void;
+  onEdit: (entry: Entry) => void;
+  onDelete: (weekStart: string) => void;
 }) {
   const hasCurrentWeek = props.entries.some((entry) => entry.week_start === props.weekStart);
-  const loadStatus = hasCurrentWeek ? "Carga completa para la semana seleccionada" : "Falta cargar esta semana";
+  const loadStatus = hasCurrentWeek ? "Carga completa para el dia seleccionado" : "Falta cargar este dia";
+  const entriesByDate = useMemo(
+    () => new Map(props.entries.map((entry) => [entry.week_start, entry])),
+    [props.entries],
+  );
+  const calendarDays = useMemo(() => calendarDaysFor(props.weekStart), [props.weekStart]);
 
   return (
     <>
@@ -357,12 +542,46 @@ function EstablishmentPanel(props: {
         <form className="panel" onSubmit={(event) => { event.preventDefault(); props.onSave(); }}>
           <div className="panel-title">
             <CalendarDays size={21} />
-            <h2>Carga semanal</h2>
+            <h2>Carga diaria</h2>
           </div>
           <label>
-            Semana
+            Dia
             <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
           </label>
+          <div className="calendar-card">
+            <div className="calendar-header">
+              <strong>{parseDateInput(props.weekStart).toLocaleDateString("es-AR", { month: "long", year: "numeric" })}</strong>
+              <span>Verde cargado · amarillo pendiente</span>
+            </div>
+            <div className="calendar-grid calendar-weekdays">
+              {["L", "M", "M", "J", "V", "S", "D"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+            </div>
+            <div className="calendar-grid">
+              {calendarDays.map((date, index) => {
+                if (!date) {
+                  return <span className="calendar-empty" key={`empty-${index}`} />;
+                }
+                const entry = entriesByDate.get(date);
+                const isSelected = date === props.weekStart;
+                return (
+                  <button
+                    className={[
+                      "calendar-day",
+                      entry ? "loaded" : "missing",
+                      isSelected ? "selected" : "",
+                    ].filter(Boolean).join(" ")}
+                    key={date}
+                    type="button"
+                    title={entry ? "Editar carga" : "Cargar este dia"}
+                    onClick={() => entry ? props.onEdit(entry) : props.onSelectEmptyDate(date)}
+                  >
+                    <span>{parseDateInput(date).getDate()}</span>
+                    {entry ? <small>{entry.occupied_places}p / {entry.occupied_units}u</small> : <small>Pendiente</small>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="field-grid">
             <label>
               Plazas ocupadas
@@ -400,15 +619,24 @@ function EstablishmentPanel(props: {
           </div>
           <div className="table">
             <div className="table-row table-head">
-              <span>Semana</span>
+              <span>Dia</span>
               <span>Plazas</span>
               <span>Unidades</span>
+              <span></span>
             </div>
             {props.entries.map((entry) => (
               <div className="table-row" key={entry.id}>
                 <span>{entry.week_start}</span>
                 <strong>{entry.occupied_places}</strong>
                 <strong>{entry.occupied_units}</strong>
+                <span className="row-actions">
+                  <button className="icon-button compact-icon" type="button" title="Editar carga" onClick={() => props.onEdit(entry)}>
+                    <Pencil size={16} />
+                  </button>
+                  <button className="icon-button compact-icon danger-icon" type="button" title="Eliminar carga" onClick={() => props.onDelete(entry.week_start)}>
+                    <Trash2 size={16} />
+                  </button>
+                </span>
               </div>
             ))}
           </div>
@@ -420,30 +648,81 @@ function EstablishmentPanel(props: {
 
 function AdminPanel(props: {
   compliance: Compliance[];
-  stats: StatsRow[];
+  stats: StatsResponse;
   period: string;
+  compliancePeriod: string;
   weekStart: string;
+  statsYear: number;
+  statsMonth: number;
+  statsWeekStart: string;
   onPeriodChange: (value: string) => void;
+  onCompliancePeriodChange: (value: string) => void;
   onWeekChange: (value: string) => void;
+  onStatsYearChange: (value: number) => void;
+  onStatsMonthChange: (value: number) => void;
+  onStatsWeekStartChange: (value: string) => void;
   onRefresh: () => void;
   establishments: EstablishmentSummary[];
   lastCreatedId: string;
   selectedProfile: EstablishmentSummary | null;
   selectedProfileEntries: Entry[];
-  onCreateEstablishment: (payload: {
-    parcel_number: string;
-    accommodation_name: string;
-    address: string;
-    phone: string;
-  }) => void;
+  onCreateEstablishment: (payload: EstablishmentPayload) => void;
+  onUpdateEstablishment: (establishmentId: string, payload: EstablishmentPayload) => void;
+  onDeleteEstablishment: (establishmentId: string) => void;
   onOpenEstablishment: (establishment: EstablishmentSummary) => void;
   onOpenCompliance: (item: Compliance) => void;
+  onSendReminder: (establishmentId: string) => void;
+  onSendMissingReminders: () => void;
   onCloseProfile: () => void;
 }) {
   const [newParcelNumber, setNewParcelNumber] = useState("");
   const [newAccommodationName, setNewAccommodationName] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [newUnits, setNewUnits] = useState("");
+  const [newPlaces, setNewPlaces] = useState("");
+  const [newAccommodationType, setNewAccommodationType] = useState(accommodationTypes[0]);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editParcelNumber, setEditParcelNumber] = useState("");
+  const [editAccommodationName, setEditAccommodationName] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editUnits, setEditUnits] = useState("");
+  const [editPlaces, setEditPlaces] = useState("");
+  const [editAccommodationType, setEditAccommodationType] = useState(accommodationTypes[0]);
+  const [establishmentSearch, setEstablishmentSearch] = useState("");
+  const [complianceSearch, setComplianceSearch] = useState("");
+
+  const filteredEstablishments = useMemo(() => {
+    const query = establishmentSearch.trim().toLowerCase();
+    if (!query) return props.establishments;
+    return props.establishments.filter((item) =>
+      [
+        item.id,
+        item.parcel_number,
+        item.accommodation_name,
+        item.establishment_name,
+        item.address,
+        item.phone,
+        item.whatsapp,
+        item.accommodation_type,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [establishmentSearch, props.establishments]);
+
+  const filteredCompliance = useMemo(() => {
+    const query = complianceSearch.trim().toLowerCase();
+    if (!query) return props.compliance;
+    return props.compliance.filter((item) =>
+      [item.establishment_id, item.establishment_name, item.whatsapp]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [complianceSearch, props.compliance]);
+
+  const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
 
   function submitEstablishment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -452,11 +731,41 @@ function AdminPanel(props: {
       accommodation_name: newAccommodationName.trim(),
       address: newAddress.trim(),
       phone: newPhone.trim(),
+      units: parseOptionalNumber(newUnits),
+      places: parseOptionalNumber(newPlaces),
+      accommodation_type: newAccommodationType,
     });
     setNewParcelNumber("");
     setNewAccommodationName("");
     setNewAddress("");
     setNewPhone("");
+    setNewUnits("");
+    setNewPlaces("");
+    setNewAccommodationType(accommodationTypes[0]);
+  }
+
+  function startEditingProfile(establishment: EstablishmentSummary) {
+    setEditParcelNumber(establishment.parcel_number ?? "");
+    setEditAccommodationName(establishment.accommodation_name ?? establishment.establishment_name);
+    setEditAddress(establishment.address ?? "");
+    setEditPhone(establishment.phone ?? establishment.whatsapp ?? "");
+    setEditUnits(formatEditNumber(establishment.units));
+    setEditPlaces(formatEditNumber(establishment.places));
+    setEditAccommodationType(establishment.accommodation_type ?? accommodationTypes[0]);
+    setEditingProfile(true);
+  }
+
+  function saveProfileEdit(establishment: EstablishmentSummary) {
+    props.onUpdateEstablishment(establishment.id, {
+      parcel_number: editParcelNumber.trim(),
+      accommodation_name: editAccommodationName.trim(),
+      address: editAddress.trim(),
+      phone: editPhone.trim(),
+      units: parseOptionalNumber(editUnits),
+      places: parseOptionalNumber(editPlaces),
+      accommodation_type: editAccommodationType,
+    });
+    setEditingProfile(false);
   }
 
   async function copyLastId() {
@@ -472,25 +781,80 @@ function AdminPanel(props: {
     <section className="admin-layout">
       {props.selectedProfile ? (
         <section className="panel profile-panel">
-          <button className="secondary-button back-button" type="button" onClick={props.onCloseProfile}>
-            <ArrowLeft size={18} />
-            <span>Volver</span>
-          </button>
+          <div className="profile-actions">
+            <button className="secondary-button back-button" type="button" onClick={props.onCloseProfile}>
+              <ArrowLeft size={18} />
+              <span>Volver</span>
+            </button>
+            <div className="profile-action-group">
+              {editingProfile ? (
+                <>
+                  <button className="primary-button inline-button" type="button" onClick={() => saveProfileEdit(props.selectedProfile!)}>
+                    <Save size={18} />
+                    <span>Guardar</span>
+                  </button>
+                  <button className="secondary-button inline-button" type="button" onClick={() => setEditingProfile(false)}>
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button className="secondary-button inline-button" type="button" onClick={() => startEditingProfile(props.selectedProfile!)}>
+                  <Pencil size={18} />
+                  <span>Editar</span>
+                </button>
+              )}
+              <button className="secondary-button inline-button danger-button" type="button" onClick={() => props.onDeleteEstablishment(props.selectedProfile!.id)}>
+                <Trash2 size={18} />
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
           <div className="profile-head">
             <div>
               <p className="eyebrow">Perfil de establecimiento</p>
               <h2>{props.selectedProfile.accommodation_name ?? props.selectedProfile.establishment_name}</h2>
             </div>
-            <strong className="profile-id">{props.selectedProfile.id}</strong>
+            <div className="profile-id-actions">
+              <strong className="profile-id">{props.selectedProfile.id}</strong>
+              <button
+                className="secondary-button inline-button"
+                type="button"
+                onClick={() => props.onSendReminder(props.selectedProfile!.id)}
+                disabled={!props.selectedProfile.phone && !props.selectedProfile.whatsapp}
+              >
+                <MessageSquareText size={18} />
+                <span>Recordar</span>
+              </button>
+            </div>
           </div>
-          <div className="profile-grid">
-            <ProfileField label="Nro. de parcela" value={props.selectedProfile.parcel_number} />
-            <ProfileField label="Direccion" value={props.selectedProfile.address} />
-            <ProfileField label="Telefono" value={props.selectedProfile.phone ?? props.selectedProfile.whatsapp} />
-          </div>
-          <div className="table">
+          {editingProfile ? (
+            <div className="edit-grid">
+              <label>Nro. de parcela<input value={editParcelNumber} onChange={(event) => setEditParcelNumber(event.target.value)} /></label>
+              <label>Nombre de alojamiento<input value={editAccommodationName} onChange={(event) => setEditAccommodationName(event.target.value)} /></label>
+              <label>Direccion<input value={editAddress} onChange={(event) => setEditAddress(event.target.value)} /></label>
+              <label>Telefono<input value={editPhone} onChange={(event) => setEditPhone(event.target.value)} /></label>
+              <label>
+                Tipo de alojamiento
+                <select value={editAccommodationType} onChange={(event) => setEditAccommodationType(event.target.value)}>
+                  {accommodationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label>Unidades<input type="number" min="0" value={editUnits} onChange={(event) => setEditUnits(event.target.value)} /></label>
+              <label>Plazas<input type="number" min="0" value={editPlaces} onChange={(event) => setEditPlaces(event.target.value)} /></label>
+            </div>
+          ) : (
+            <div className="profile-grid">
+              <ProfileField label="Nro. de parcela" value={props.selectedProfile.parcel_number} />
+              <ProfileField label="Direccion" value={props.selectedProfile.address} />
+              <ProfileField label="Telefono" value={props.selectedProfile.phone ?? props.selectedProfile.whatsapp} />
+              <ProfileField label="Tipo de alojamiento" value={props.selectedProfile.accommodation_type} />
+              <ProfileField label="Unidades habilitadas" value={formatOptionalNumber(props.selectedProfile.units)} />
+              <ProfileField label="Plazas habilitadas" value={formatOptionalNumber(props.selectedProfile.places)} />
+            </div>
+          )}
+          <div className="table profile-entries-scroll">
             <div className="table-row table-head">
-              <span>Semana</span>
+              <span>Dia</span>
               <span>Plazas</span>
               <span>Unidades</span>
             </div>
@@ -506,66 +870,117 @@ function AdminPanel(props: {
       ) : null}
       <div className="admin-grid">
       <div className="panel">
-        <div className="panel-title">
-          <BarChart3 size={21} />
-          <h2>Estadisticas</h2>
+        <div className="panel-header">
+          <div className="panel-title">
+            <BarChart3 size={21} />
+            <h2>Estadisticas</h2>
+          </div>
+          <span className="count-badge">{props.stats.weeks} semana{props.stats.weeks === 1 ? "" : "s"}</span>
         </div>
         <div className="toolbar">
           <select value={props.period} onChange={(event) => props.onPeriodChange(event.target.value)}>
-            <option value="establishment">Por establecimiento</option>
             <option value="yearly">Anual</option>
             <option value="monthly">Mensual</option>
             <option value="weekend">Fin de semana</option>
           </select>
           <button className="secondary-button" onClick={props.onRefresh}>Actualizar</button>
         </div>
-        <div className="table">
-          <div className="table-row table-head">
-            <span>Periodo</span>
-            <span>Plazas</span>
-            <span>Unidades</span>
-            <span>Cargas</span>
-          </div>
-          {props.stats.map((row) => (
-            <div className="table-row" key={row.label}>
-              <span>{row.label}</span>
-              <strong>{row.occupied_places}</strong>
-              <strong>{row.occupied_units}</strong>
-              <strong>{row.entries}</strong>
-            </div>
-          ))}
+        <div className="stats-filter-grid">
+          {(props.period === "yearly" || props.period === "monthly") ? (
+            <label>
+              Ano
+              <select value={props.statsYear} onChange={(event) => props.onStatsYearChange(Number(event.target.value))}>
+                {yearOptions().map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {props.period === "monthly" ? (
+            <label>
+              Mes
+              <select value={props.statsMonth} onChange={(event) => props.onStatsMonthChange(Number(event.target.value))}>
+                {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {props.period === "weekend" ? (
+            <label>
+              Semana
+              <input type="date" value={props.statsWeekStart} onChange={(event) => props.onStatsWeekStartChange(event.target.value)} />
+            </label>
+          ) : null}
         </div>
+        <StatsCharts rows={props.stats.type_rows} />
       </div>
 
       <div className="panel">
-        <div className="panel-title">
-          <Users size={21} />
-          <h2>Cumplimiento</h2>
+        <div className="panel-header">
+          <div className="panel-title">
+            <Users size={21} />
+            <h2>Cumplimiento</h2>
+          </div>
+          <span className="count-badge">{filteredCompliance.length}/{props.compliance.length}</span>
         </div>
-        <div className="toolbar">
+        <div className="toolbar compliance-toolbar">
+          <select value={props.compliancePeriod} onChange={(event) => props.onCompliancePeriodChange(event.target.value)}>
+            <option value="week">Semana</option>
+            <option value="fortnight">Quincena</option>
+            <option value="month">Mes</option>
+          </select>
           <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
           <button className="secondary-button" onClick={props.onRefresh}>Revisar</button>
         </div>
-        <div className="compliance-list">
-          {props.compliance.map((item) => (
-            <button className="compliance-item clickable-row" key={item.establishment_id} onClick={() => props.onOpenCompliance(item)}>
-              <div>
-                <strong>{item.establishment_name}</strong>
-                <span>{item.completed ? "Completo" : `Falta: ${item.missing_fields.join(", ")}`}</span>
-              </div>
-              <span className={item.completed ? "pill ok" : "pill warn"}>
-                {item.completed ? "OK" : "Pendiente"}
-              </span>
-            </button>
+        <button className="primary-button reminder-all" type="button" onClick={props.onSendMissingReminders}>
+          <MessageSquareText size={18} />
+          <span>Recordar pendientes</span>
+        </button>
+        <div className="search-box">
+          <Search size={18} />
+          <input
+            aria-label="Buscar en cumplimiento"
+            placeholder="Buscar alojamiento o ID"
+            value={complianceSearch}
+            onChange={(event) => setComplianceSearch(event.target.value)}
+          />
+        </div>
+        <div className="compliance-list scroll-list">
+          {filteredCompliance.map((item) => (
+            <div className="compliance-item" key={item.establishment_id}>
+              <button className="compliance-main clickable-row" type="button" onClick={() => props.onOpenCompliance(item)}>
+                <div>
+                  <strong>{item.establishment_name}</strong>
+                  <span>{item.completed ? "Completo" : `Falta: ${formatMissingFields(item.missing_fields)}`}</span>
+                </div>
+                <span className={item.completed ? "pill ok" : "pill warn"}>
+                  {item.completed ? "OK" : "Pendiente"}
+                </span>
+              </button>
+              <button
+                className="icon-button compact-icon"
+                type="button"
+                title="Enviar recordatorio"
+                onClick={() => props.onSendReminder(item.establishment_id)}
+                disabled={!item.whatsapp}
+              >
+                <MessageSquareText size={17} />
+              </button>
+            </div>
           ))}
         </div>
       </div>
       </div>
 
       <section className="panel">
-        <div className="panel-title">
-          <Plus size={21} />
-          <h2>Establecimientos</h2>
+        <div className="panel-header">
+          <div className="panel-title">
+            <Plus size={21} />
+            <h2>Establecimientos</h2>
+          </div>
+          <div className="metric-strip">
+            <span className="count-badge">{filteredEstablishments.length}/{props.establishments.length}</span>
+            <span className={missingPhones ? "count-badge warn-badge" : "count-badge ok-badge"}>
+              {missingPhones} sin telefono
+            </span>
+          </div>
         </div>
         <form className="establishment-form" onSubmit={submitEstablishment}>
           <label>
@@ -604,6 +1019,30 @@ function AdminPanel(props: {
               required
             />
           </label>
+          <label>
+            Tipo de alojamiento
+            <select value={newAccommodationType} onChange={(event) => setNewAccommodationType(event.target.value)}>
+              {accommodationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+          <label>
+            Unidades
+            <input
+              type="number"
+              min="0"
+              value={newUnits}
+              onChange={(event) => setNewUnits(event.target.value)}
+            />
+          </label>
+          <label>
+            Plazas
+            <input
+              type="number"
+              min="0"
+              value={newPlaces}
+              onChange={(event) => setNewPlaces(event.target.value)}
+            />
+          </label>
           <button className="primary-button" type="submit">
             <Plus size={18} />
             <span>Crear</span>
@@ -620,23 +1059,43 @@ function AdminPanel(props: {
             </button>
           </div>
         ) : null}
-        <div className="table establishment-table">
-          <div className="table-row table-head">
+        <div className="list-toolbar">
+          <div className="search-box">
+            <Search size={18} />
+            <input
+              aria-label="Buscar establecimientos"
+              placeholder="Buscar por nombre, ID, parcela, direccion o telefono"
+              value={establishmentSearch}
+              onChange={(event) => setEstablishmentSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="table establishment-table data-list">
+          <div className="table-row table-head sticky-head">
             <span>ID</span>
             <span>Parcela</span>
             <span>Alojamiento</span>
             <span>Direccion</span>
             <span>Telefono</span>
+            <span>Tipo</span>
+            <span>Unid.</span>
+            <span>Plazas</span>
           </div>
-          {props.establishments.map((item) => (
+          {filteredEstablishments.map((item) => (
             <button className="table-row clickable-row" key={item.id} onClick={() => props.onOpenEstablishment(item)}>
               <span>{item.id}</span>
               <span>{item.parcel_number ?? "-"}</span>
               <strong>{item.accommodation_name ?? item.establishment_name}</strong>
               <span>{item.address ?? "-"}</span>
               <span>{item.phone ?? item.whatsapp}</span>
+              <span>{item.accommodation_type ?? "-"}</span>
+              <span>{formatOptionalNumber(item.units)}</span>
+              <span>{formatOptionalNumber(item.places)}</span>
             </button>
           ))}
+          {filteredEstablishments.length === 0 ? (
+            <div className="empty-state">No hay establecimientos para esa busqueda.</div>
+          ) : null}
         </div>
       </section>
     </section>
@@ -650,6 +1109,144 @@ function ProfileField(props: { label: string; value?: string }) {
       <strong>{props.value || "-"}</strong>
     </div>
   );
+}
+
+function StatsCharts(props: { rows: TypeStatsRow[] }) {
+  const rows = props.rows.length ? props.rows : demoStats.type_rows;
+  const totalResponses = rows.reduce((sum, row) => sum + row.response_count, 0);
+
+  return (
+    <div className="stats-charts">
+      <div className="chart-card participation-chart">
+        <div className="chart-heading">
+          <h3>Nivel de participacion</h3>
+          <span>N={totalResponses}</span>
+        </div>
+        <div className="pie-wrap">
+          <div
+            className="pie-chart"
+            style={{ background: buildPieGradient(rows.map((row) => row.response_count)) }}
+            aria-label="Participacion por tipo de alojamiento"
+          />
+          <div className="chart-legend">
+            {rows.map((row, index) => (
+              <div key={row.accommodation_type}>
+                <span className="legend-dot" style={{ background: chartColors[index % chartColors.length] }} />
+                <strong>{row.accommodation_type}</strong>
+                <span>{row.response_count} ({formatPercent(percentFrom(row.response_count, totalResponses))})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <BarChart
+        title="Tasa de respuestas"
+        subtitle="En porcentajes"
+        rows={rows}
+        value={(row) => row.response_rate_percent}
+        valueLabel={(value) => formatPercent(value)}
+      />
+      <BarChart
+        title="Cantidad de respuestas"
+        subtitle="En cantidades"
+        rows={rows}
+        value={(row) => row.response_count}
+        valueLabel={(value) => String(Math.round(value))}
+      />
+      <BarChart
+        title="Porcentaje de ocupacion"
+        subtitle="Plazas ocupadas sobre plazas habilitadas"
+        rows={rows}
+        value={(row) => row.occupancy_rate_percent}
+        valueLabel={(value) => formatPercent(value)}
+      />
+      <BarChart
+        title="Porcentaje de unidades ocupadas"
+        subtitle="Unidades ocupadas sobre unidades habilitadas"
+        rows={rows}
+        value={(row) => row.unit_occupancy_percent}
+        valueLabel={(value) => formatPercent(value)}
+      />
+    </div>
+  );
+}
+
+function BarChart(props: {
+  title: string;
+  subtitle: string;
+  rows: TypeStatsRow[];
+  value: (row: TypeStatsRow) => number;
+  valueLabel: (value: number) => string;
+}) {
+  const values = props.rows.map(props.value);
+  const max = Math.max(...values, 1);
+
+  return (
+    <div className="chart-card">
+      <div className="chart-heading">
+        <h3>{props.title}</h3>
+        <span>{props.subtitle}</span>
+      </div>
+      <div className="bar-chart">
+        {props.rows.map((row, index) => {
+          const value = props.value(row);
+          return (
+            <div className="bar-row" key={row.accommodation_type}>
+              <span className="bar-label">{row.accommodation_type}</span>
+              <div className="bar-track">
+                <span
+                  className="bar-fill"
+                  style={{
+                    width: `${Math.max((value / max) * 100, value > 0 ? 2 : 0)}%`,
+                    background: chartColors[index % chartColors.length],
+                  }}
+                />
+              </div>
+              <strong>{props.valueLabel(value)}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function buildPieGradient(values: number[]) {
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (!total) {
+    return "#eef1ea";
+  }
+
+  let start = 0;
+  const segments = values.map((value, index) => {
+    const end = start + (value / total) * 100;
+    const segment = `${chartColors[index % chartColors.length]} ${start}% ${end}%`;
+    start = end;
+    return segment;
+  });
+  return `conic-gradient(${segments.join(", ")})`;
+}
+
+function formatPercent(value: number) {
+  return `${value.toFixed(2)}%`;
+}
+
+function percentFrom(value: number, total: number) {
+  return total ? (value / total) * 100 : 0;
+}
+
+function formatOptionalNumber(value?: number) {
+  return typeof value === "number" ? String(value) : "-";
+}
+
+function formatEditNumber(value?: number) {
+  return typeof value === "number" ? String(value) : "";
+}
+
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? Number(trimmed) : undefined;
 }
 
 const demoCompliance: Compliance[] = [
@@ -673,10 +1270,67 @@ const demoCompliance: Compliance[] = [
   },
 ];
 
-const demoStats: StatsRow[] = [
-  { label: "2026-05", occupied_places: 120, occupied_units: 48, entries: 6 },
-  { label: "2026-06", occupied_places: 42, occupied_units: 16, entries: 2 },
-];
+const demoStats: StatsResponse = {
+  period: "monthly",
+  year: 2026,
+  month: 6,
+  week_start: currentWeek,
+  weeks: 4,
+  rows: [
+    { label: "2026-05", occupied_places: 120, occupied_units: 48, entries: 6 },
+    { label: "2026-06", occupied_places: 42, occupied_units: 16, entries: 2 },
+  ],
+  type_rows: [
+    {
+      accommodation_type: "Hoteles / hosterias",
+      establishments: 11,
+      participant_establishments: 4,
+      participation_percent: 36.36,
+      expected_responses: 44,
+      response_count: 7,
+      missing_responses: 37,
+      response_rate_percent: 15.91,
+      occupied_places: 18,
+      available_places: 1680,
+      occupancy_rate_percent: 1.07,
+      occupied_units: 7,
+      available_units: 680,
+      unit_occupancy_percent: 1.03,
+    },
+    {
+      accommodation_type: "Apart / cabanas",
+      establishments: 10,
+      participant_establishments: 2,
+      participation_percent: 20,
+      expected_responses: 40,
+      response_count: 8,
+      missing_responses: 32,
+      response_rate_percent: 20,
+      occupied_places: 24,
+      available_places: 400,
+      occupancy_rate_percent: 6,
+      occupied_units: 9,
+      available_units: 200,
+      unit_occupancy_percent: 4.5,
+    },
+    {
+      accommodation_type: "Hostels",
+      establishments: 7,
+      participant_establishments: 3,
+      participation_percent: 42.86,
+      expected_responses: 28,
+      response_count: 4,
+      missing_responses: 24,
+      response_rate_percent: 14.29,
+      occupied_places: 20,
+      available_places: 560,
+      occupancy_rate_percent: 3.57,
+      occupied_units: 8,
+      available_units: 224,
+      unit_occupancy_percent: 3.57,
+    },
+  ],
+};
 
 const demoEstablishments: EstablishmentSummary[] = [
   {
@@ -686,6 +1340,9 @@ const demoEstablishments: EstablishmentSummary[] = [
     parcel_number: "101",
     address: "Av. Principal 123",
     phone: "+5492901000001",
+    units: 17,
+    places: 42,
+    accommodation_type: "Hoteles / hosterias",
     whatsapp: "+5492901000001",
   },
   {
@@ -695,6 +1352,9 @@ const demoEstablishments: EstablishmentSummary[] = [
     parcel_number: "204",
     address: "Costanera 456",
     phone: "+5492901000002",
+    units: 5,
+    places: 10,
+    accommodation_type: "Apart / cabanas",
     whatsapp: "+5492901000002",
   },
 ];

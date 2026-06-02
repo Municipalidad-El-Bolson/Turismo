@@ -19,6 +19,9 @@ class User(BaseModel):
     accommodation_name: str | None = None
     address: str | None = None
     phone: str | None = None
+    units: int | None = None
+    places: int | None = None
+    accommodation_type: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -36,6 +39,19 @@ class EstablishmentCreate(BaseModel):
     accommodation_name: str = Field(min_length=2)
     address: str = Field(min_length=3)
     phone: str = Field(min_length=6)
+    units: int | None = Field(default=None, ge=0)
+    places: int | None = Field(default=None, ge=0)
+    accommodation_type: str | None = None
+
+
+class EstablishmentUpdate(BaseModel):
+    parcel_number: str = Field(min_length=1)
+    accommodation_name: str = Field(min_length=2)
+    address: str = Field(min_length=3)
+    phone: str = Field(min_length=6)
+    units: int | None = Field(default=None, ge=0)
+    places: int | None = Field(default=None, ge=0)
+    accommodation_type: str | None = None
 
 
 class OccupancyEntryCreate(BaseModel):
@@ -61,6 +77,9 @@ class EstablishmentSummary(BaseModel):
     accommodation_name: str | None = None
     address: str | None = None
     phone: str | None = None
+    units: int | None = None
+    places: int | None = None
+    accommodation_type: str | None = None
 
 
 class ComplianceStatus(BaseModel):
@@ -80,6 +99,43 @@ class StatsRow(BaseModel):
     entries: int
 
 
+class TypeStatsRow(BaseModel):
+    accommodation_type: str
+    establishments: int
+    participant_establishments: int
+    participation_percent: float
+    expected_responses: int
+    response_count: int
+    missing_responses: int
+    response_rate_percent: float
+    occupied_places: int
+    available_places: int
+    occupancy_rate_percent: float
+    occupied_units: int
+    available_units: int
+    unit_occupancy_percent: float
+
+
 class StatsResponse(BaseModel):
     period: str
+    year: int | None = None
+    month: int | None = None
+    week_start: date | None = None
+    weeks: int = 1
     rows: list[StatsRow]
+    type_rows: list[TypeStatsRow] = Field(default_factory=list)
+
+
+class WhatsAppSendResult(BaseModel):
+    establishment_id: str
+    establishment_name: str
+    to: str
+    sent: bool
+    dry_run: bool
+    message: str
+    detail: object | None = None
+
+
+class WhatsAppBulkResult(BaseModel):
+    week_start: date
+    results: list[WhatsAppSendResult]

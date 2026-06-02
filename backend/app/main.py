@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,21 +8,26 @@ from .config import settings
 from .database import close_database, connect_database
 from .repositories import (
     aggregate_stats,
+    aggregate_type_stats,
     create_establishment,
+    delete_entry,
+    delete_establishment,
     ensure_indexes,
     find_admin_by_credentials,
-    find_entry,
     find_user,
     list_entries,
+    list_entries_between,
     list_establishments,
     seed_demo_data,
     serialize_user,
+    update_establishment,
     upsert_occupancy_entry,
 )
 from .schemas import (
     ComplianceStatus,
     EstablishmentCreate,
     EstablishmentSummary,
+    EstablishmentUpdate,
     LoginRequest,
     LoginResponse,
     OccupancyEntry,
@@ -30,7 +35,10 @@ from .schemas import (
     StatsResponse,
     User,
     UserRole,
+    WhatsAppBulkResult,
+    WhatsAppSendResult,
 )
+from .whatsapp import build_reminder_message, send_whatsapp_text
 
 app = FastAPI(title="Turismo MEB API", version="0.1.0")
 
@@ -102,6 +110,9 @@ async def establishments(_: User = Depends(require_admin)) -> list[Establishment
             accommodation_name=user["accommodation_name"],
             address=user["address"],
             phone=user["phone"],
+            units=user["units"],
+            places=user["places"],
+            accommodation_type=user["accommodation_type"],
         )
         for user in await list_establishments()
     ]
@@ -125,7 +136,43 @@ async def add_establishment(
         accommodation_name=user["accommodation_name"],
         address=user["address"],
         phone=user["phone"],
+        units=user["units"],
+        places=user["places"],
+        accommodation_type=user["accommodation_type"],
     )
+
+
+@app.put("/admin/establishments/{establishment_id}", response_model=EstablishmentSummary)
+async def edit_establishment(
+    establishment_id: str,
+    payload: EstablishmentUpdate,
+    _: User = Depends(require_admin),
+) -> EstablishmentSummary:
+    user = await update_establishment(establishment_id, payload)
+    if not user:
+        raise HTTPException(status_code=404, detail="Establishment not found")
+    return EstablishmentSummary(
+        id=user["id"],
+        establishment_name=user["establishment_name"] or user["display_name"],
+        whatsapp=user["whatsapp"] or "",
+        parcel_number=user["parcel_number"],
+        accommodation_name=user["accommodation_name"],
+        address=user["address"],
+        phone=user["phone"],
+        units=user["units"],
+        places=user["places"],
+        accommodation_type=user["accommodation_type"],
+    )
+
+
+@app.delete("/admin/establishments/{establishment_id}", status_code=204)
+async def remove_establishment(
+    establishment_id: str,
+    _: User = Depends(require_admin),
+) -> None:
+    deleted = await delete_establishment(establishment_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Establishment not found")
 
 
 @app.get("/establishments/{establishment_id}/entries", response_model=list[OccupancyEntry])
@@ -153,19 +200,57 @@ async def save_entry(
     return OccupancyEntry(**entry)
 
 
+@app.delete("/establishments/{establishment_id}/entries/{week_start}", status_code=204)
+async def remove_entry(
+    establishment_id: str,
+    week_start: date,
+    user: User = Depends(get_current_user),
+) -> None:
+    if user.role != UserRole.ADMIN and user.id != establishment_id:
+        raise HTTPException(status_code=403, detail="Cannot delete another establishment entry")
+    deleted = await delete_entry(establishment_id, week_start)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+
 @app.get("/admin/compliance", response_model=list[ComplianceStatus])
 async def compliance(
     week_start: date,
+    compliance_period: str = Query("week", pattern="^(week|fortnight|month)$"),
     _: User = Depends(require_admin),
 ) -> list[ComplianceStatus]:
+    return await build_compliance_statuses(week_start, compliance_period)
+
+
+def compliance_range(week_start: date, compliance_period: str) -> tuple[date, date]:
+    if compliance_period == "month":
+        start = date(week_start.year, week_start.month, 1)
+        if week_start.month == 12:
+            end = date(week_start.year + 1, 1, 1)
+        else:
+            end = date(week_start.year, week_start.month + 1, 1)
+        return start, end
+    if compliance_period == "fortnight":
+        if week_start.day <= 15:
+            return date(week_start.year, week_start.month, 1), date(week_start.year, week_start.month, 16)
+        if week_start.month == 12:
+            return date(week_start.year, 12, 16), date(week_start.year + 1, 1, 1)
+        return date(week_start.year, week_start.month, 16), date(week_start.year, week_start.month + 1, 1)
+    return week_start, week_start + timedelta(days=7)
+
+
+async def build_compliance_statuses(week_start: date, compliance_period: str = "week") -> list[ComplianceStatus]:
+    start, end = compliance_range(week_start, compliance_period)
     statuses: list[ComplianceStatus] = []
     for establishment in await list_establishments():
-        entry = await find_entry(establishment["id"], week_start)
+        entries = await list_entries_between(establishment["id"], start, end)
         missing_fields = []
-        if not entry:
-            missing_fields = ["occupied_places", "occupied_units"]
-        elif entry["occupied_places"] == 0 and entry["occupied_units"] == 0:
-            missing_fields = ["occupied_places", "occupied_units"]
+        valid_entries = [
+            entry for entry in entries
+            if entry["occupied_places"] > 0 or entry["occupied_units"] > 0
+        ]
+        if not valid_entries:
+            missing_fields = ["period_entries"]
 
         completed = len(missing_fields) == 0
         statuses.append(
@@ -173,7 +258,7 @@ async def compliance(
                 establishment_id=establishment["id"],
                 establishment_name=establishment["establishment_name"] or establishment["display_name"],
                 whatsapp=establishment["whatsapp"],
-                week_start=week_start,
+                week_start=start,
                 completed=completed,
                 missing_fields=missing_fields,
                 status="complete" if completed else "missing",
@@ -182,12 +267,62 @@ async def compliance(
     return statuses
 
 
+@app.post("/admin/whatsapp/reminders/{establishment_id}", response_model=WhatsAppSendResult)
+async def send_establishment_reminder(
+    establishment_id: str,
+    week_start: date,
+    _: User = Depends(require_admin),
+) -> WhatsAppSendResult:
+    establishment = await find_user(establishment_id)
+    if not establishment or establishment["role"] != UserRole.ESTABLISHMENT:
+        raise HTTPException(status_code=404, detail="Establishment not found")
+
+    user = serialize_user(establishment)
+    phone = user["phone"] or user["whatsapp"]
+    message = build_reminder_message(user["establishment_name"] or user["display_name"], week_start.isoformat())
+    result = await send_whatsapp_text(phone, message)
+    return WhatsAppSendResult(
+        establishment_id=user["id"],
+        establishment_name=user["establishment_name"] or user["display_name"],
+        to=result["to"],
+        sent=result["sent"],
+        dry_run=result["dry_run"],
+        message=result["message"],
+        detail=result["detail"],
+    )
+
+
+@app.post("/admin/whatsapp/reminders", response_model=WhatsAppBulkResult)
+async def send_missing_reminders(
+    week_start: date,
+    compliance_period: str = Query("week", pattern="^(week|fortnight|month)$"),
+    _: User = Depends(require_admin),
+) -> WhatsAppBulkResult:
+    statuses = await build_compliance_statuses(week_start, compliance_period)
+    results: list[WhatsAppSendResult] = []
+    for status in statuses:
+        if status.completed:
+            continue
+        results.append(await send_establishment_reminder(status.establishment_id, week_start, _))
+    return WhatsAppBulkResult(week_start=week_start, results=results)
+
+
 @app.get("/admin/stats", response_model=StatsResponse)
 async def stats(
     period: str = Query("monthly", pattern="^(establishment|yearly|monthly|weekend)$"),
     year: int | None = None,
     month: int | None = Query(None, ge=1, le=12),
+    week_start: date | None = None,
     _: User = Depends(require_admin),
 ) -> StatsResponse:
     rows = await aggregate_stats(period, year, month)
-    return StatsResponse(period=period, rows=rows)
+    type_rows, weeks = await aggregate_type_stats(period, year, month, week_start)
+    return StatsResponse(
+        period=period,
+        year=year,
+        month=month,
+        week_start=week_start,
+        weeks=weeks,
+        rows=rows,
+        type_rows=type_rows,
+    )
