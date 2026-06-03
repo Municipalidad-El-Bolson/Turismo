@@ -20,6 +20,7 @@ from .repositories import (
     list_establishments,
     seed_demo_data,
     serialize_user,
+    stats_availability,
     update_establishment,
     upsert_occupancy_entry,
 )
@@ -32,6 +33,7 @@ from .schemas import (
     LoginResponse,
     OccupancyEntry,
     OccupancyEntryCreate,
+    StatsAvailability,
     StatsResponse,
     User,
     UserRole,
@@ -326,3 +328,8 @@ async def stats(
         rows=rows,
         type_rows=type_rows,
     )
+
+
+@app.get("/admin/stats/availability", response_model=StatsAvailability)
+async def stats_period_availability(_: User = Depends(require_admin)) -> StatsAvailability:
+    return StatsAvailability(**await stats_availability())

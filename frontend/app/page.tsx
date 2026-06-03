@@ -26,6 +26,7 @@ import {
   Entry,
   EstablishmentSummary,
   EstablishmentPayload,
+  StatsAvailability,
   StatsResponse,
   TypeStatsRow,
   User,
@@ -100,17 +101,35 @@ const monthOptions = [
   { value: 12, label: "Diciembre" },
 ];
 
-function yearOptions() {
+function yearOptions(availability: StatsAvailability) {
   const currentYear = new Date().getFullYear();
-  return Array.from({ length: 8 }, (_, index) => currentYear - 5 + index);
+  const years = new Set([
+    ...Array.from({ length: 8 }, (_, index) => currentYear - 5 + index),
+    ...availability.years,
+  ]);
+  return Array.from(years).sort((a, b) => a - b);
+}
+
+function hasYearData(availability: StatsAvailability, year: number) {
+  return availability.years.includes(year);
+}
+
+function hasMonthData(availability: StatsAvailability, year: number, month: number) {
+  return (availability.months_by_year[String(year)] ?? []).includes(month);
 }
 
 function formatMissingFields(fields: string[]) {
   return fields.map((field) => missingFieldLabels[field] ?? field).join(", ");
 }
 
-function LogoMark(props: { className?: string }) {
-  return <img className={props.className ?? "brand-logo"} src="/el-bolson-turismo-logo.avif" alt="Turismo El Bolson" />;
+function LogoMark(props: { className?: string; src?: string }) {
+  return (
+    <img
+      className={props.className ?? "brand-logo"}
+      src={props.src ?? "/el-bolson-logo-dark.png"}
+      alt="Turismo El Bolson"
+    />
+  );
 }
 
 export default function Home() {
@@ -118,6 +137,7 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>(demoEntries);
   const [compliance, setCompliance] = useState<Compliance[]>([]);
   const [stats, setStats] = useState<StatsResponse>(demoStats);
+  const [statsAvailability, setStatsAvailability] = useState<StatsAvailability>(demoStatsAvailability);
   const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
   const [lastCreatedId, setLastCreatedId] = useState("");
   const [loginId, setLoginId] = useState("");
@@ -166,6 +186,7 @@ export default function Home() {
       if (demo?.role === "admin") {
         setCompliance(demoCompliance);
         setStats(demoStats);
+        setStatsAvailability(demoStatsAvailability);
         setEstablishments(demoEstablishments);
       }
     }
@@ -188,6 +209,7 @@ export default function Home() {
         setUser(demoAdmin ?? null);
         setCompliance(demoCompliance);
         setStats(demoStats);
+        setStatsAvailability(demoStatsAvailability);
         setEstablishments(demoEstablishments);
         setMessage("Backend no disponible: usando admin demo.");
         return;
@@ -240,18 +262,21 @@ export default function Home() {
 
   async function loadAdminData(userId = user?.id ?? "meb-admin") {
     try {
-      const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
+      const [complianceResponse, statsResponse, establishmentsResponse, statsAvailabilityResponse] = await Promise.all([
         api.compliance(userId, weekStart, compliancePeriod),
         api.stats(userId, period, statsYear, statsMonth, statsWeekStart),
         api.establishments(userId),
+        api.statsAvailability(userId),
       ]);
       setCompliance(complianceResponse);
       setStats(statsResponse);
       setEstablishments(establishmentsResponse);
+      setStatsAvailability(statsAvailabilityResponse);
       setMessage("Panel admin actualizado.");
     } catch {
       setCompliance(demoCompliance);
       setStats(demoStats);
+      setStatsAvailability(demoStatsAvailability);
       setEstablishments(demoEstablishments);
       setMessage("Backend no disponible: panel admin en modo demo.");
     }
@@ -305,6 +330,9 @@ export default function Home() {
 
   async function openEstablishmentProfile(establishment: EstablishmentSummary) {
     setSelectedProfile(establishment);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
     if (!user) {
       setSelectedProfileEntries([]);
       return;
@@ -355,7 +383,7 @@ export default function Home() {
         <section className="login">
           <div>
             <div className="brand-lockup">
-              <LogoMark className="brand-logo hero-logo" />
+              <LogoMark className="brand-logo hero-logo" src="/el-bolson-login-logo.png" />
               <p className="eyebrow">Turismo MEB</p>
             </div>
             <h1>Control de carga y ocupacion semanal</h1>
@@ -423,7 +451,7 @@ export default function Home() {
     <main className="shell">
       <header className="topbar">
         <div className="topbar-brand">
-          <LogoMark className="brand-logo topbar-logo" />
+          <LogoMark className="brand-logo topbar-logo" src="/el-bolson-logo-title.png" />
           <div>
             <p className="eyebrow">Turismo MEB</p>
             <h1>{isAdmin ? "Panel admin" : user.establishment_name}</h1>
@@ -440,6 +468,7 @@ export default function Home() {
         <AdminPanel
           compliance={compliance}
           stats={stats}
+          statsAvailability={statsAvailability}
           period={period}
           compliancePeriod={compliancePeriod}
           weekStart={weekStart}
@@ -649,6 +678,7 @@ function EstablishmentPanel(props: {
 function AdminPanel(props: {
   compliance: Compliance[];
   stats: StatsResponse;
+  statsAvailability: StatsAvailability;
   period: string;
   compliancePeriod: string;
   weekStart: string;
@@ -723,6 +753,13 @@ function AdminPanel(props: {
   }, [complianceSearch, props.compliance]);
 
   const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
+  const selectedYearHasData = hasYearData(props.statsAvailability, props.statsYear);
+  const selectedMonthHasData = hasMonthData(props.statsAvailability, props.statsYear, props.statsMonth);
+  const selectedPeriodHasData = props.period === "yearly"
+    ? selectedYearHasData
+    : props.period === "monthly"
+      ? selectedMonthHasData
+      : true;
 
   function submitEstablishment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -890,7 +927,19 @@ function AdminPanel(props: {
             <label>
               Ano
               <select value={props.statsYear} onChange={(event) => props.onStatsYearChange(Number(event.target.value))}>
-                {yearOptions().map((year) => <option key={year} value={year}>{year}</option>)}
+                {yearOptions(props.statsAvailability).map((year) => {
+                  const hasData = hasYearData(props.statsAvailability, year);
+                  return (
+                    <option
+                      className={hasData ? undefined : "muted-option"}
+                      disabled={!hasData && year !== props.statsYear}
+                      key={year}
+                      value={year}
+                    >
+                      {hasData ? year : `${year} - sin datos`}
+                    </option>
+                  );
+                })}
               </select>
             </label>
           ) : null}
@@ -898,7 +947,19 @@ function AdminPanel(props: {
             <label>
               Mes
               <select value={props.statsMonth} onChange={(event) => props.onStatsMonthChange(Number(event.target.value))}>
-                {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+                {monthOptions.map((month) => {
+                  const hasData = hasMonthData(props.statsAvailability, props.statsYear, month.value);
+                  return (
+                    <option
+                      className={hasData ? undefined : "muted-option"}
+                      disabled={!hasData && month.value !== props.statsMonth}
+                      key={month.value}
+                      value={month.value}
+                    >
+                      {hasData ? month.label : `${month.label} - sin datos`}
+                    </option>
+                  );
+                })}
               </select>
             </label>
           ) : null}
@@ -909,10 +970,13 @@ function AdminPanel(props: {
             </label>
           ) : null}
         </div>
+        {!selectedPeriodHasData ? (
+          <p className="empty-data-hint">No hay datos cargados para el periodo seleccionado.</p>
+        ) : null}
         <StatsCharts rows={props.stats.type_rows} />
       </div>
 
-      <div className="panel">
+      <div className="panel compliance-panel">
         <div className="panel-header">
           <div className="panel-title">
             <Users size={21} />
@@ -969,7 +1033,7 @@ function AdminPanel(props: {
       </div>
       </div>
 
-      <section className="panel">
+      <section className="panel establishments-panel">
         <div className="panel-header">
           <div className="panel-title">
             <Plus size={21} />
@@ -1330,6 +1394,13 @@ const demoStats: StatsResponse = {
       unit_occupancy_percent: 3.57,
     },
   ],
+};
+
+const demoStatsAvailability: StatsAvailability = {
+  years: [2026],
+  months_by_year: {
+    "2026": [5, 6],
+  },
 };
 
 const demoEstablishments: EstablishmentSummary[] = [

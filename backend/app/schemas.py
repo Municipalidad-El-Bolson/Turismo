@@ -126,6 +126,11 @@ class StatsResponse(BaseModel):
     type_rows: list[TypeStatsRow] = Field(default_factory=list)
 
 
+class StatsAvailability(BaseModel):
+    years: list[int]
+    months_by_year: dict[str, list[int]]
+
+
 class WhatsAppSendResult(BaseModel):
     establishment_id: str
     establishment_name: str

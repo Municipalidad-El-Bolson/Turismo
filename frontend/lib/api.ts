@@ -71,6 +71,11 @@ export type StatsResponse = {
   type_rows: TypeStatsRow[];
 };
 
+export type StatsAvailability = {
+  years: number[];
+  months_by_year: Record<string, number[]>;
+};
+
 export type WhatsAppSendResult = {
   establishment_id: string;
   establishment_name: string;
@@ -151,6 +156,8 @@ export const api = {
     request<StatsResponse>(
       `/admin/stats?userId=${userId}&period=${period}&year=${year}&month=${month}&week_start=${weekStart}`,
     ),
+  statsAvailability: (userId: string) =>
+    request<StatsAvailability>(`/admin/stats/availability?userId=${userId}`),
   establishments: (userId: string) =>
     request<EstablishmentSummary[]>(`/establishments?userId=${userId}`),
   createEstablishment: (

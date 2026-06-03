@@ -340,6 +340,35 @@ async def aggregate_stats(period: str, year: int | None, month: int | None) -> l
     return rows
 
 
+async def stats_availability() -> dict:
+    pipeline = [
+        {
+            "$group": {
+                "_id": {
+                    "year": {"$year": "$week_start"},
+                    "month": {"$month": "$week_start"},
+                }
+            }
+        },
+        {"$sort": {"_id.year": 1, "_id.month": 1}},
+    ]
+    years: set[int] = set()
+    months_by_year: dict[str, set[int]] = {}
+    async for document in get_database().occupancy_entries.aggregate(pipeline):
+        year = int(document["_id"]["year"])
+        month = int(document["_id"]["month"])
+        years.add(year)
+        months_by_year.setdefault(str(year), set()).add(month)
+
+    return {
+        "years": sorted(years),
+        "months_by_year": {
+            year: sorted(months)
+            for year, months in sorted(months_by_year.items(), key=lambda item: int(item[0]))
+        },
+    }
+
+
 def stats_date_range(period: str, year: int | None, month: int | None, week_start: date | None) -> tuple[datetime, datetime, int]:
     today = datetime.now(UTC).date()
     selected_year = year or today.year
