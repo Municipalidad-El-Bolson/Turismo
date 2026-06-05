@@ -13,6 +13,8 @@ export type User = {
   units?: number;
   places?: number;
   accommodation_type?: string;
+  temporary_leave_start?: string;
+  temporary_leave_end?: string;
 };
 
 export type Entry = {
@@ -55,9 +57,11 @@ export type TypeStatsRow = {
   response_rate_percent: number;
   occupied_places: number;
   available_places: number;
+  respondent_available_places: number;
   occupancy_rate_percent: number;
   occupied_units: number;
   available_units: number;
+  respondent_available_units: number;
   unit_occupancy_percent: number;
 };
 
@@ -66,6 +70,8 @@ export type StatsResponse = {
   year?: number;
   month?: number;
   week_start?: string;
+  range_start?: string;
+  range_end?: string;
   weeks: number;
   rows: StatsRow[];
   type_rows: TypeStatsRow[];
@@ -97,6 +103,8 @@ export type EstablishmentSummary = {
   units?: number;
   places?: number;
   accommodation_type?: string;
+  temporary_leave_start?: string;
+  temporary_leave_end?: string;
 };
 
 export type EstablishmentPayload = {
@@ -107,6 +115,8 @@ export type EstablishmentPayload = {
   units?: number;
   places?: number;
   accommodation_type?: string;
+  temporary_leave_start?: string;
+  temporary_leave_end?: string;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -152,9 +162,17 @@ export const api = {
     request<Compliance[]>(
       `/admin/compliance?userId=${userId}&week_start=${weekStart}&compliance_period=${compliancePeriod}`,
     ),
-  stats: (userId: string, period: string, year: number, month: number, weekStart: string) =>
+  stats: (
+    userId: string,
+    period: string,
+    year: number,
+    month: number,
+    weekStart: string,
+    rangeStart: string,
+    rangeEnd: string,
+  ) =>
     request<StatsResponse>(
-      `/admin/stats?userId=${userId}&period=${period}&year=${year}&month=${month}&week_start=${weekStart}`,
+      `/admin/stats?userId=${userId}&period=${period}&year=${year}&month=${month}&week_start=${weekStart}&range_start=${rangeStart}&range_end=${rangeEnd}`,
     ),
   statsAvailability: (userId: string) =>
     request<StatsAvailability>(`/admin/stats/availability?userId=${userId}`),

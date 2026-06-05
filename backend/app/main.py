@@ -115,6 +115,8 @@ async def establishments(_: User = Depends(require_admin)) -> list[Establishment
             units=user["units"],
             places=user["places"],
             accommodation_type=user["accommodation_type"],
+            temporary_leave_start=user["temporary_leave_start"],
+            temporary_leave_end=user["temporary_leave_end"],
         )
         for user in await list_establishments()
     ]
@@ -141,6 +143,8 @@ async def add_establishment(
         units=user["units"],
         places=user["places"],
         accommodation_type=user["accommodation_type"],
+        temporary_leave_start=user["temporary_leave_start"],
+        temporary_leave_end=user["temporary_leave_end"],
     )
 
 
@@ -164,6 +168,8 @@ async def edit_establishment(
         units=user["units"],
         places=user["places"],
         accommodation_type=user["accommodation_type"],
+        temporary_leave_start=user["temporary_leave_start"],
+        temporary_leave_end=user["temporary_leave_end"],
     )
 
 
@@ -311,19 +317,23 @@ async def send_missing_reminders(
 
 @app.get("/admin/stats", response_model=StatsResponse)
 async def stats(
-    period: str = Query("monthly", pattern="^(establishment|yearly|monthly|weekend)$"),
+    period: str = Query("monthly", pattern="^(establishment|yearly|monthly|weekend|range)$"),
     year: int | None = None,
     month: int | None = Query(None, ge=1, le=12),
     week_start: date | None = None,
+    range_start: date | None = None,
+    range_end: date | None = None,
     _: User = Depends(require_admin),
 ) -> StatsResponse:
-    rows = await aggregate_stats(period, year, month)
-    type_rows, weeks = await aggregate_type_stats(period, year, month, week_start)
+    rows = await aggregate_stats(period, year, month, week_start, range_start, range_end)
+    type_rows, weeks = await aggregate_type_stats(period, year, month, week_start, range_start, range_end)
     return StatsResponse(
         period=period,
         year=year,
         month=month,
         week_start=week_start,
+        range_start=range_start,
+        range_end=range_end,
         weeks=weeks,
         rows=rows,
         type_rows=type_rows,

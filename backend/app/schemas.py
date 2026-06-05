@@ -22,6 +22,8 @@ class User(BaseModel):
     units: int | None = None
     places: int | None = None
     accommodation_type: str | None = None
+    temporary_leave_start: date | None = None
+    temporary_leave_end: date | None = None
 
 
 class LoginRequest(BaseModel):
@@ -42,6 +44,8 @@ class EstablishmentCreate(BaseModel):
     units: int | None = Field(default=None, ge=0)
     places: int | None = Field(default=None, ge=0)
     accommodation_type: str | None = None
+    temporary_leave_start: date | None = None
+    temporary_leave_end: date | None = None
 
 
 class EstablishmentUpdate(BaseModel):
@@ -52,6 +56,8 @@ class EstablishmentUpdate(BaseModel):
     units: int | None = Field(default=None, ge=0)
     places: int | None = Field(default=None, ge=0)
     accommodation_type: str | None = None
+    temporary_leave_start: date | None = None
+    temporary_leave_end: date | None = None
 
 
 class OccupancyEntryCreate(BaseModel):
@@ -80,6 +86,8 @@ class EstablishmentSummary(BaseModel):
     units: int | None = None
     places: int | None = None
     accommodation_type: str | None = None
+    temporary_leave_start: date | None = None
+    temporary_leave_end: date | None = None
 
 
 class ComplianceStatus(BaseModel):
@@ -110,9 +118,11 @@ class TypeStatsRow(BaseModel):
     response_rate_percent: float
     occupied_places: int
     available_places: int
+    respondent_available_places: int
     occupancy_rate_percent: float
     occupied_units: int
     available_units: int
+    respondent_available_units: int
     unit_occupancy_percent: float
 
 
@@ -121,6 +131,8 @@ class StatsResponse(BaseModel):
     year: int | None = None
     month: int | None = None
     week_start: date | None = None
+    range_start: date | None = None
+    range_end: date | None = None
     weeks: int = 1
     rows: list[StatsRow]
     type_rows: list[TypeStatsRow] = Field(default_factory=list)

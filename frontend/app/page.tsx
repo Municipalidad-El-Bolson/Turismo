@@ -44,6 +44,7 @@ function mondayOf(date: Date) {
 }
 
 const currentWeek = mondayOf(new Date());
+const todayDate = formatDateInput(new Date());
 
 function parseDateInput(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -154,6 +155,8 @@ export default function Home() {
   const [statsYear, setStatsYear] = useState(new Date().getFullYear());
   const [statsMonth, setStatsMonth] = useState(new Date().getMonth() + 1);
   const [statsWeekStart, setStatsWeekStart] = useState(currentWeek);
+  const [statsRangeStart, setStatsRangeStart] = useState(currentWeek);
+  const [statsRangeEnd, setStatsRangeEnd] = useState(todayDate);
   const [message, setMessage] = useState("Modo demo activo hasta conectar el backend.");
 
   const isAdmin = user?.role === "admin";
@@ -264,7 +267,7 @@ export default function Home() {
     try {
       const [complianceResponse, statsResponse, establishmentsResponse, statsAvailabilityResponse] = await Promise.all([
         api.compliance(userId, weekStart, compliancePeriod),
-        api.stats(userId, period, statsYear, statsMonth, statsWeekStart),
+        api.stats(userId, period, statsYear, statsMonth, statsWeekStart, statsRangeStart, statsRangeEnd),
         api.establishments(userId),
         api.statsAvailability(userId),
       ]);
@@ -475,12 +478,16 @@ export default function Home() {
           statsYear={statsYear}
           statsMonth={statsMonth}
           statsWeekStart={statsWeekStart}
+          statsRangeStart={statsRangeStart}
+          statsRangeEnd={statsRangeEnd}
           onPeriodChange={setPeriod}
           onCompliancePeriodChange={setCompliancePeriod}
           onWeekChange={setWeekStart}
           onStatsYearChange={setStatsYear}
           onStatsMonthChange={setStatsMonth}
           onStatsWeekStartChange={setStatsWeekStart}
+          onStatsRangeStartChange={setStatsRangeStart}
+          onStatsRangeEndChange={setStatsRangeEnd}
           onRefresh={() => loadAdminData()}
           establishments={establishments}
           lastCreatedId={lastCreatedId}
@@ -685,12 +692,16 @@ function AdminPanel(props: {
   statsYear: number;
   statsMonth: number;
   statsWeekStart: string;
+  statsRangeStart: string;
+  statsRangeEnd: string;
   onPeriodChange: (value: string) => void;
   onCompliancePeriodChange: (value: string) => void;
   onWeekChange: (value: string) => void;
   onStatsYearChange: (value: number) => void;
   onStatsMonthChange: (value: number) => void;
   onStatsWeekStartChange: (value: string) => void;
+  onStatsRangeStartChange: (value: string) => void;
+  onStatsRangeEndChange: (value: string) => void;
   onRefresh: () => void;
   establishments: EstablishmentSummary[];
   lastCreatedId: string;
@@ -720,6 +731,8 @@ function AdminPanel(props: {
   const [editUnits, setEditUnits] = useState("");
   const [editPlaces, setEditPlaces] = useState("");
   const [editAccommodationType, setEditAccommodationType] = useState(accommodationTypes[0]);
+  const [editTemporaryLeaveStart, setEditTemporaryLeaveStart] = useState("");
+  const [editTemporaryLeaveEnd, setEditTemporaryLeaveEnd] = useState("");
   const [establishmentSearch, setEstablishmentSearch] = useState("");
   const [complianceSearch, setComplianceSearch] = useState("");
 
@@ -736,6 +749,8 @@ function AdminPanel(props: {
         item.phone,
         item.whatsapp,
         item.accommodation_type,
+        item.temporary_leave_start,
+        item.temporary_leave_end,
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query)),
@@ -789,6 +804,8 @@ function AdminPanel(props: {
     setEditUnits(formatEditNumber(establishment.units));
     setEditPlaces(formatEditNumber(establishment.places));
     setEditAccommodationType(establishment.accommodation_type ?? accommodationTypes[0]);
+    setEditTemporaryLeaveStart(establishment.temporary_leave_start ?? "");
+    setEditTemporaryLeaveEnd(establishment.temporary_leave_end ?? "");
     setEditingProfile(true);
   }
 
@@ -801,6 +818,8 @@ function AdminPanel(props: {
       units: parseOptionalNumber(editUnits),
       places: parseOptionalNumber(editPlaces),
       accommodation_type: editAccommodationType,
+      temporary_leave_start: editTemporaryLeaveStart || undefined,
+      temporary_leave_end: editTemporaryLeaveEnd || undefined,
     });
     setEditingProfile(false);
   }
@@ -878,6 +897,8 @@ function AdminPanel(props: {
               </label>
               <label>Unidades<input type="number" min="0" value={editUnits} onChange={(event) => setEditUnits(event.target.value)} /></label>
               <label>Plazas<input type="number" min="0" value={editPlaces} onChange={(event) => setEditPlaces(event.target.value)} /></label>
+              <label>Baja temporal desde<input type="date" value={editTemporaryLeaveStart} onChange={(event) => setEditTemporaryLeaveStart(event.target.value)} /></label>
+              <label>Baja temporal hasta<input type="date" value={editTemporaryLeaveEnd} onChange={(event) => setEditTemporaryLeaveEnd(event.target.value)} /></label>
             </div>
           ) : (
             <div className="profile-grid">
@@ -887,6 +908,7 @@ function AdminPanel(props: {
               <ProfileField label="Tipo de alojamiento" value={props.selectedProfile.accommodation_type} />
               <ProfileField label="Unidades habilitadas" value={formatOptionalNumber(props.selectedProfile.units)} />
               <ProfileField label="Plazas habilitadas" value={formatOptionalNumber(props.selectedProfile.places)} />
+              <ProfileField label="Baja temporal" value={formatTemporaryLeave(props.selectedProfile)} />
             </div>
           )}
           <div className="table profile-entries-scroll">
@@ -919,6 +941,7 @@ function AdminPanel(props: {
             <option value="yearly">Anual</option>
             <option value="monthly">Mensual</option>
             <option value="weekend">Fin de semana</option>
+            <option value="range">Rango de fechas</option>
           </select>
           <button className="secondary-button" onClick={props.onRefresh}>Actualizar</button>
         </div>
@@ -968,6 +991,18 @@ function AdminPanel(props: {
               Semana
               <input type="date" value={props.statsWeekStart} onChange={(event) => props.onStatsWeekStartChange(event.target.value)} />
             </label>
+          ) : null}
+          {props.period === "range" ? (
+            <>
+              <label>
+                Desde
+                <input type="date" value={props.statsRangeStart} onChange={(event) => props.onStatsRangeStartChange(event.target.value)} />
+              </label>
+              <label>
+                Hasta
+                <input type="date" value={props.statsRangeEnd} onChange={(event) => props.onStatsRangeEndChange(event.target.value)} />
+              </label>
+            </>
           ) : null}
         </div>
         {!selectedPeriodHasData ? (
@@ -1175,9 +1210,23 @@ function ProfileField(props: { label: string; value?: string }) {
   );
 }
 
+function formatTemporaryLeave(establishment: EstablishmentSummary) {
+  if (!establishment.temporary_leave_start || !establishment.temporary_leave_end) {
+    return undefined;
+  }
+  return `${establishment.temporary_leave_start} al ${establishment.temporary_leave_end}`;
+}
+
 function StatsCharts(props: { rows: TypeStatsRow[] }) {
   const rows = props.rows.length ? props.rows : demoStats.type_rows;
   const totalResponses = rows.reduce((sum, row) => sum + row.response_count, 0);
+  const totalExpectedResponses = rows.reduce((sum, row) => sum + row.expected_responses, 0);
+  const totalEstablishments = rows.reduce((sum, row) => sum + row.establishments, 0);
+  const totalParticipantEstablishments = rows.reduce((sum, row) => sum + row.participant_establishments, 0);
+  const totalOccupiedPlaces = rows.reduce((sum, row) => sum + row.occupied_places, 0);
+  const totalRespondentPlaces = rows.reduce((sum, row) => sum + row.respondent_available_places, 0);
+  const totalOccupiedUnits = rows.reduce((sum, row) => sum + row.occupied_units, 0);
+  const totalRespondentUnits = rows.reduce((sum, row) => sum + row.respondent_available_units, 0);
 
   return (
     <div className="stats-charts">
@@ -1232,6 +1281,37 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
         value={(row) => row.unit_occupancy_percent}
         valueLabel={(value) => formatPercent(value)}
       />
+      <div className="chart-card totals-card">
+        <div className="chart-heading">
+          <h3>Total general</h3>
+          <span>Sobre establecimientos respondientes</span>
+        </div>
+        <div className="totals-grid">
+          <TotalMetric label="Respondientes" value={`${totalParticipantEstablishments}/${totalEstablishments}`} />
+          <TotalMetric label="Tasa de respuestas" value={formatPercent(percentFrom(totalResponses, totalExpectedResponses))} />
+          <TotalMetric label="Respuestas" value={String(totalResponses)} />
+          <TotalMetric
+            label="Tasa ocupacion plazas"
+            value={formatPercent(percentFrom(totalOccupiedPlaces, totalRespondentPlaces))}
+            detail={`${totalOccupiedPlaces}/${totalRespondentPlaces}`}
+          />
+          <TotalMetric
+            label="Tasa ocupacion unidades"
+            value={formatPercent(percentFrom(totalOccupiedUnits, totalRespondentUnits))}
+            detail={`${totalOccupiedUnits}/${totalRespondentUnits}`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TotalMetric(props: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="total-metric">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+      {props.detail ? <small>{props.detail}</small> : null}
     </div>
   );
 }
@@ -1339,6 +1419,8 @@ const demoStats: StatsResponse = {
   year: 2026,
   month: 6,
   week_start: currentWeek,
+  range_start: currentWeek,
+  range_end: todayDate,
   weeks: 4,
   rows: [
     { label: "2026-05", occupied_places: 120, occupied_units: 48, entries: 6 },
@@ -1356,9 +1438,11 @@ const demoStats: StatsResponse = {
       response_rate_percent: 15.91,
       occupied_places: 18,
       available_places: 1680,
+      respondent_available_places: 520,
       occupancy_rate_percent: 1.07,
       occupied_units: 7,
       available_units: 680,
+      respondent_available_units: 210,
       unit_occupancy_percent: 1.03,
     },
     {
@@ -1372,9 +1456,11 @@ const demoStats: StatsResponse = {
       response_rate_percent: 20,
       occupied_places: 24,
       available_places: 400,
+      respondent_available_places: 180,
       occupancy_rate_percent: 6,
       occupied_units: 9,
       available_units: 200,
+      respondent_available_units: 80,
       unit_occupancy_percent: 4.5,
     },
     {
@@ -1388,9 +1474,11 @@ const demoStats: StatsResponse = {
       response_rate_percent: 14.29,
       occupied_places: 20,
       available_places: 560,
+      respondent_available_places: 240,
       occupancy_rate_percent: 3.57,
       occupied_units: 8,
       available_units: 224,
+      respondent_available_units: 96,
       unit_occupancy_percent: 3.57,
     },
   ],

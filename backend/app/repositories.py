@@ -28,6 +28,64 @@ def infer_accommodation_type(name: str | None) -> str:
     return "Otros"
 
 
+def serialize_optional_date(value) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def date_to_datetime(value: date | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.combine(value, datetime.min.time(), tzinfo=UTC)
+
+
+def leave_dates(establishment: dict) -> tuple[date | None, date | None]:
+    start = serialize_optional_date(establishment.get("temporary_leave_start"))
+    end = serialize_optional_date(establishment.get("temporary_leave_end"))
+    if start and end and end < start:
+        return end, start
+    return start, end
+
+
+def leave_overlaps(establishment: dict, start: date, end: date) -> bool:
+    leave_start, leave_end = leave_dates(establishment)
+    if not leave_start or not leave_end:
+        return False
+    return leave_start < end and leave_end >= start
+
+
+def entry_is_on_leave(establishment: dict, entry_date: date) -> bool:
+    leave_start, leave_end = leave_dates(establishment)
+    return bool(leave_start and leave_end and leave_start <= entry_date <= leave_end)
+
+
+def week_count_between(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    return max(1, len({(start + timedelta(days=offset)).isocalendar().week for offset in range((end - start).days)}))
+
+
+def active_weeks_for_establishment(establishment: dict, period: str, start: date, end: date, total_weeks: int) -> int:
+    leave_start, leave_end = leave_dates(establishment)
+    if not leave_start or not leave_end:
+        return total_weeks
+
+    leave_end_exclusive = leave_end + timedelta(days=1)
+    overlap_start = max(start, leave_start)
+    overlap_end = min(end, leave_end_exclusive)
+    if overlap_end <= overlap_start:
+        return total_weeks
+    if period in {"monthly", "weekend"}:
+        return 0
+    unavailable_weeks = week_count_between(overlap_start, overlap_end)
+    return max(total_weeks - unavailable_weeks, 0)
+
+
 def generate_establishment_id() -> str:
     return str(10_000_000 + randbelow(90_000_000))
 
@@ -47,6 +105,8 @@ def serialize_user(document: dict) -> dict:
         "units": document.get("units"),
         "places": document.get("places"),
         "accommodation_type": document.get("accommodation_type") or infer_accommodation_type(establishment_name),
+        "temporary_leave_start": serialize_optional_date(document.get("temporary_leave_start")),
+        "temporary_leave_end": serialize_optional_date(document.get("temporary_leave_end")),
     }
 
 
@@ -189,6 +249,8 @@ async def create_establishment(payload: EstablishmentCreate) -> dict:
             "units": payload.units,
             "places": payload.places,
             "accommodation_type": payload.accommodation_type or infer_accommodation_type(payload.accommodation_name),
+            "temporary_leave_start": date_to_datetime(payload.temporary_leave_start),
+            "temporary_leave_end": date_to_datetime(payload.temporary_leave_end),
         }
         try:
             await db.users.insert_one(document)
@@ -211,6 +273,8 @@ async def update_establishment(establishment_id: str, payload: EstablishmentUpda
         "units": payload.units,
         "places": payload.places,
         "accommodation_type": payload.accommodation_type or infer_accommodation_type(payload.accommodation_name),
+        "temporary_leave_start": date_to_datetime(payload.temporary_leave_start),
+        "temporary_leave_end": date_to_datetime(payload.temporary_leave_end),
     }
     result = await get_database().users.update_one(
         {"_id": establishment_id, "role": UserRole.ESTABLISHMENT},
@@ -297,20 +361,21 @@ async def delete_entry(establishment_id: str, week_start) -> bool:
     return result.deleted_count > 0
 
 
-async def aggregate_stats(period: str, year: int | None, month: int | None) -> list[dict]:
-    match: dict = {}
-    if year:
-        start = datetime(year, month or 1, 1, tzinfo=UTC)
-        end_year = year + 1 if month is None else year + (1 if month == 12 else 0)
-        end_month = 1 if month == 12 else (month + 1 if month else 1)
-        end = datetime(end_year, end_month, 1, tzinfo=UTC)
-        match["week_start"] = {"$gte": start, "$lt": end}
-
+async def aggregate_stats(
+    period: str,
+    year: int | None,
+    month: int | None,
+    week_start: date | None,
+    range_start: date | None,
+    range_end: date | None,
+) -> list[dict]:
+    start, end, _ = stats_date_range(period, year, month, week_start, range_start, range_end)
+    match: dict = {"week_start": {"$gte": start, "$lt": end}}
     if period == "yearly":
         label_expr = {"$dateToString": {"format": "%Y", "date": "$week_start"}}
     elif period == "monthly":
         label_expr = {"$dateToString": {"format": "%Y-%m", "date": "$week_start"}}
-    elif period == "weekend":
+    elif period in {"weekend", "range"}:
         label_expr = {"$dateToString": {"format": "%Y-%m-%d", "date": "$week_start"}}
     else:
         label_expr = "$establishment_name"
@@ -369,12 +434,25 @@ async def stats_availability() -> dict:
     }
 
 
-def stats_date_range(period: str, year: int | None, month: int | None, week_start: date | None) -> tuple[datetime, datetime, int]:
+def stats_date_range(
+    period: str,
+    year: int | None,
+    month: int | None,
+    week_start: date | None,
+    range_start: date | None = None,
+    range_end: date | None = None,
+) -> tuple[datetime, datetime, int]:
     today = datetime.now(UTC).date()
     selected_year = year or today.year
     selected_month = month or today.month
 
-    if period == "yearly":
+    if period == "range":
+        start_date = range_start or today
+        final_date = range_end or start_date
+        if final_date < start_date:
+            start_date, final_date = final_date, start_date
+        end_date = final_date + timedelta(days=1)
+    elif period == "yearly":
         start_date = date(selected_year, 1, 1)
         end_date = date(selected_year + 1, 1, 1)
     elif period == "monthly":
@@ -410,17 +488,29 @@ def percent(numerator: int | float, denominator: int | float) -> float:
     return round((numerator / denominator) * 100, 2)
 
 
-async def aggregate_type_stats(period: str, year: int | None, month: int | None, week_start: date | None) -> tuple[list[dict], int]:
-    start, end, weeks = stats_date_range(period, year, month, week_start)
+async def aggregate_type_stats(
+    period: str,
+    year: int | None,
+    month: int | None,
+    week_start: date | None,
+    range_start: date | None,
+    range_end: date | None,
+) -> tuple[list[dict], int]:
+    start, end, weeks = stats_date_range(period, year, month, week_start, range_start, range_end)
+    start_date = start.date()
+    end_date = end.date()
     establishments = await list_establishments()
     entries = await list_entries()
     period_entries = [
         entry for entry in entries
-        if start.date() <= entry["week_start"] < end.date()
+        if start_date <= entry["week_start"] < end_date
     ]
 
     rows: dict[str, dict] = {}
     for establishment in establishments:
+        active_weeks = active_weeks_for_establishment(establishment, period, start_date, end_date, weeks)
+        if active_weeks <= 0:
+            continue
         accommodation_type = establishment.get("accommodation_type") or infer_accommodation_type(establishment.get("establishment_name"))
         row = rows.setdefault(
             accommodation_type,
@@ -437,14 +527,18 @@ async def aggregate_type_stats(period: str, year: int | None, month: int | None,
             },
         )
         row["establishments"] += 1
-        row["expected_responses"] += weeks
-        row["available_places"] += (establishment.get("places") or 0) * weeks
-        row["available_units"] += (establishment.get("units") or 0) * weeks
+        row["expected_responses"] += active_weeks
+        row["available_places"] += (establishment.get("places") or 0) * active_weeks
+        row["available_units"] += (establishment.get("units") or 0) * active_weeks
 
     establishments_by_id = {establishment["id"]: establishment for establishment in establishments}
     for entry in period_entries:
         establishment = establishments_by_id.get(entry["establishment_id"])
         if not establishment:
+            continue
+        if entry_is_on_leave(establishment, entry["week_start"]):
+            continue
+        if active_weeks_for_establishment(establishment, period, start_date, end_date, weeks) <= 0:
             continue
         accommodation_type = establishment.get("accommodation_type") or infer_accommodation_type(entry.get("establishment_name"))
         row = rows.setdefault(
@@ -470,6 +564,15 @@ async def aggregate_type_stats(period: str, year: int | None, month: int | None,
     for row in sorted(rows.values(), key=lambda item: item["accommodation_type"]):
         participant_establishments = len(row["participant_ids"])
         missing_responses = max(row["expected_responses"] - row["response_count"], 0)
+        respondent_available_places = 0
+        respondent_available_units = 0
+        for establishment_id in row["participant_ids"]:
+            establishment = establishments_by_id.get(establishment_id)
+            if not establishment:
+                continue
+            active_weeks = active_weeks_for_establishment(establishment, period, start_date, end_date, weeks)
+            respondent_available_places += (establishment.get("places") or 0) * active_weeks
+            respondent_available_units += (establishment.get("units") or 0) * active_weeks
         result.append(
             {
                 "accommodation_type": row["accommodation_type"],
@@ -482,9 +585,11 @@ async def aggregate_type_stats(period: str, year: int | None, month: int | None,
                 "response_rate_percent": percent(row["response_count"], row["expected_responses"]),
                 "occupied_places": row["occupied_places"],
                 "available_places": row["available_places"],
+                "respondent_available_places": respondent_available_places,
                 "occupancy_rate_percent": percent(row["occupied_places"], row["available_places"]),
                 "occupied_units": row["occupied_units"],
                 "available_units": row["available_units"],
+                "respondent_available_units": respondent_available_units,
                 "unit_occupancy_percent": percent(row["occupied_units"], row["available_units"]),
             }
         )

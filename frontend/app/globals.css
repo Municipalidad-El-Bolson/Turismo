@@ -812,6 +812,38 @@ button.table-row {
   text-align: right;
 }
 
+.totals-card {
+  background: #eef5ff;
+}
+
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.total-metric {
+  display: grid;
+  gap: 4px;
+  min-height: 86px;
+  border: 1px solid #cfdbea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.total-metric span,
+.total-metric small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.total-metric strong {
+  color: var(--blue);
+  font-size: 22px;
+}
+
 .profile-panel {
   display: grid;
   gap: 16px;
@@ -979,6 +1011,10 @@ button.table-row {
   .bar-row {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+
+  .totals-grid {
+    grid-template-columns: 1fr;
   }
 
   .bar-row strong {
