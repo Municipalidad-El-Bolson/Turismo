@@ -507,6 +507,7 @@ export default function Home() {
         />
       ) : (
         <EstablishmentPanel
+          establishment={user}
           entries={ownEntries}
           weekStart={weekStart}
           occupiedPlaces={occupiedPlaces}
@@ -539,6 +540,7 @@ export default function Home() {
 }
 
 function EstablishmentPanel(props: {
+  establishment: User;
   entries: Entry[];
   weekStart: string;
   occupiedPlaces: number;
@@ -560,6 +562,12 @@ function EstablishmentPanel(props: {
     [props.entries],
   );
   const calendarDays = useMemo(() => calendarDaysFor(props.weekStart), [props.weekStart]);
+  const availablePlaces = typeof props.establishment.places === "number"
+    ? Math.max(props.establishment.places - props.occupiedPlaces, 0)
+    : undefined;
+  const availableUnits = typeof props.establishment.units === "number"
+    ? Math.max(props.establishment.units - props.occupiedUnits, 0)
+    : undefined;
 
   return (
     <>
@@ -653,6 +661,24 @@ function EstablishmentPanel(props: {
             <ClipboardList size={21} />
             <h2>Cargas previas</h2>
           </div>
+          <div className="availability-card">
+            <div className="availability-heading">
+              <strong>Disponibilidad del dia seleccionado</strong>
+              <span>{props.weekStart}</span>
+            </div>
+            <div className="availability-grid">
+              <div>
+                <span>Plazas disponibles</span>
+                <strong>{formatOptionalNumber(availablePlaces)}</strong>
+                <small>{formatOptionalNumber(props.establishment.places)} capacidad</small>
+              </div>
+              <div>
+                <span>Unidades disponibles</span>
+                <strong>{formatOptionalNumber(availableUnits)}</strong>
+                <small>{formatOptionalNumber(props.establishment.units)} capacidad</small>
+              </div>
+            </div>
+          </div>
           <div className="table">
             <div className="table-row table-head">
               <span>Dia</span>
@@ -735,6 +761,7 @@ function AdminPanel(props: {
   const [editTemporaryLeaveEnd, setEditTemporaryLeaveEnd] = useState("");
   const [establishmentSearch, setEstablishmentSearch] = useState("");
   const [complianceSearch, setComplianceSearch] = useState("");
+  const [complianceStatusFilter, setComplianceStatusFilter] = useState("all");
 
   const filteredEstablishments = useMemo(() => {
     const query = establishmentSearch.trim().toLowerCase();
@@ -759,13 +786,15 @@ function AdminPanel(props: {
 
   const filteredCompliance = useMemo(() => {
     const query = complianceSearch.trim().toLowerCase();
-    if (!query) return props.compliance;
     return props.compliance.filter((item) =>
-      [item.establishment_id, item.establishment_name, item.whatsapp]
+      (complianceStatusFilter === "all"
+        || (complianceStatusFilter === "complete" && item.completed)
+        || (complianceStatusFilter === "missing" && !item.completed))
+      && (!query || [item.establishment_id, item.establishment_name, item.whatsapp]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query)),
+        .some((value) => String(value).toLowerCase().includes(query))),
     );
-  }, [complianceSearch, props.compliance]);
+  }, [complianceSearch, complianceStatusFilter, props.compliance]);
 
   const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
   const selectedYearHasData = hasYearData(props.statsAvailability, props.statsYear);
@@ -1019,27 +1048,34 @@ function AdminPanel(props: {
           </div>
           <span className="count-badge">{filteredCompliance.length}/{props.compliance.length}</span>
         </div>
-        <div className="toolbar compliance-toolbar">
-          <select value={props.compliancePeriod} onChange={(event) => props.onCompliancePeriodChange(event.target.value)}>
-            <option value="week">Semana</option>
-            <option value="fortnight">Quincena</option>
-            <option value="month">Mes</option>
-          </select>
-          <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
-          <button className="secondary-button" onClick={props.onRefresh}>Revisar</button>
-        </div>
-        <button className="primary-button reminder-all" type="button" onClick={props.onSendMissingReminders}>
-          <MessageSquareText size={18} />
-          <span>Recordar pendientes</span>
-        </button>
-        <div className="search-box">
-          <Search size={18} />
-          <input
-            aria-label="Buscar en cumplimiento"
-            placeholder="Buscar alojamiento o ID"
-            value={complianceSearch}
-            onChange={(event) => setComplianceSearch(event.target.value)}
-          />
+        <div className="compliance-controls">
+          <div className="toolbar compliance-toolbar">
+            <select value={props.compliancePeriod} onChange={(event) => props.onCompliancePeriodChange(event.target.value)}>
+              <option value="week">Semana</option>
+              <option value="fortnight">Quincena</option>
+              <option value="month">Mes</option>
+            </select>
+            <select value={complianceStatusFilter} onChange={(event) => setComplianceStatusFilter(event.target.value)}>
+              <option value="all">Todos</option>
+              <option value="complete">Cumplidos</option>
+              <option value="missing">No cumplidos</option>
+            </select>
+            <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
+            <button className="secondary-button" onClick={props.onRefresh}>Revisar</button>
+          </div>
+          <div className="search-box">
+            <Search size={18} />
+            <input
+              aria-label="Buscar en cumplimiento"
+              placeholder="Buscar alojamiento o ID"
+              value={complianceSearch}
+              onChange={(event) => setComplianceSearch(event.target.value)}
+            />
+          </div>
+          <button className="primary-button reminder-all" type="button" onClick={props.onSendMissingReminders}>
+            <MessageSquareText size={18} />
+            <span>Recordar pendientes</span>
+          </button>
         </div>
         <div className="compliance-list scroll-list">
           {filteredCompliance.map((item) => (
