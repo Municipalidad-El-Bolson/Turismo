@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Copy,
   ClipboardList,
+  Download,
   Pencil,
   Trash2,
   LogIn,
@@ -1253,6 +1254,174 @@ function formatTemporaryLeave(establishment: EstablishmentSummary) {
   return `${establishment.temporary_leave_start} al ${establishment.temporary_leave_end}`;
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function downloadCanvas(canvas: HTMLCanvasElement, fileName: string) {
+  const link = document.createElement("a");
+  link.download = fileName;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function prepareCanvas(width: number, height: number) {
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.scale(scale, scale);
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.font = "14px Arial";
+  context.textBaseline = "middle";
+  return { canvas, context };
+}
+
+function drawText(context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number) {
+  let value = text;
+  while (context.measureText(value).width > maxWidth && value.length > 4) {
+    value = `${value.slice(0, -4)}...`;
+  }
+  context.fillText(value, x, y);
+}
+
+function downloadPieChart(rows: TypeStatsRow[], totalResponses: number) {
+  const prepared = prepareCanvas(980, 560);
+  if (!prepared) return;
+  const { canvas, context } = prepared;
+  context.fillStyle = "#18201c";
+  context.font = "700 28px Arial";
+  context.fillText("Nivel de participacion", 40, 46);
+  context.fillStyle = "#68736b";
+  context.font = "700 16px Arial";
+  context.fillText(`N=${totalResponses}`, 40, 80);
+
+  const values = rows.map((row) => row.response_count);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const centerX = 260;
+  const centerY = 300;
+  const radius = 170;
+  let startAngle = -Math.PI / 2;
+  if (!total) {
+    context.fillStyle = "#eef1ea";
+    context.beginPath();
+    context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    values.forEach((value, index) => {
+      const angle = (value / total) * Math.PI * 2;
+      context.fillStyle = chartColors[index % chartColors.length];
+      context.beginPath();
+      context.moveTo(centerX, centerY);
+      context.arc(centerX, centerY, radius, startAngle, startAngle + angle);
+      context.closePath();
+      context.fill();
+      startAngle += angle;
+    });
+  }
+
+  rows.forEach((row, index) => {
+    const y = 170 + index * 48;
+    context.fillStyle = chartColors[index % chartColors.length];
+    context.fillRect(500, y - 7, 14, 14);
+    context.fillStyle = "#23323f";
+    context.font = "700 15px Arial";
+    drawText(context, row.accommodation_type, 526, y, 250);
+    context.fillStyle = "#68736b";
+    context.font = "14px Arial";
+    context.fillText(`${row.response_count} (${formatPercent(percentFrom(row.response_count, totalResponses))})`, 790, y);
+  });
+  downloadCanvas(canvas, "nivel-de-participacion.png");
+}
+
+function downloadBarChart(
+  title: string,
+  subtitle: string,
+  rows: TypeStatsRow[],
+  value: (row: TypeStatsRow) => number,
+  valueLabel: (value: number) => string,
+) {
+  const height = Math.max(340, 130 + rows.length * 44);
+  const prepared = prepareCanvas(980, height);
+  if (!prepared) return;
+  const { canvas, context } = prepared;
+  context.fillStyle = "#18201c";
+  context.font = "700 28px Arial";
+  context.fillText(title, 40, 46);
+  context.fillStyle = "#68736b";
+  context.font = "700 16px Arial";
+  context.fillText(subtitle, 40, 80);
+
+  const values = rows.map(value);
+  const max = Math.max(...values, 1);
+  rows.forEach((row, index) => {
+    const y = 130 + index * 44;
+    const current = value(row);
+    context.fillStyle = "#23323f";
+    context.font = "700 14px Arial";
+    drawText(context, row.accommodation_type, 40, y, 230);
+    context.fillStyle = "#e8ece5";
+    context.fillRect(300, y - 9, 500, 18);
+    context.fillStyle = chartColors[index % chartColors.length];
+    context.fillRect(300, y - 9, Math.max((current / max) * 500, current > 0 ? 8 : 0), 18);
+    context.fillStyle = "#23323f";
+    context.font = "700 14px Arial";
+    context.textAlign = "right";
+    context.fillText(valueLabel(current), 920, y);
+    context.textAlign = "left";
+  });
+  downloadCanvas(canvas, `${slugify(title)}.png`);
+}
+
+function downloadTotalsChart(metrics: Array<{ label: string; value: string; detail?: string }>) {
+  const prepared = prepareCanvas(1080, 280);
+  if (!prepared) return;
+  const { canvas, context } = prepared;
+  context.fillStyle = "#18201c";
+  context.font = "700 28px Arial";
+  context.fillText("Total general", 40, 46);
+  context.fillStyle = "#68736b";
+  context.font = "700 16px Arial";
+  context.fillText("Sobre establecimientos respondientes", 40, 80);
+
+  metrics.forEach((metric, index) => {
+    const x = 40 + index * 204;
+    context.strokeStyle = "#cfdbea";
+    context.fillStyle = "#eef5ff";
+    context.lineWidth = 1;
+    context.fillRect(x, 116, 184, 112);
+    context.strokeRect(x, 116, 184, 112);
+    context.fillStyle = "#68736b";
+    context.font = "700 13px Arial";
+    drawText(context, metric.label, x + 14, 142, 156);
+    context.fillStyle = "#2457a6";
+    context.font = "700 28px Arial";
+    drawText(context, metric.value, x + 14, 176, 156);
+    if (metric.detail) {
+      context.fillStyle = "#68736b";
+      context.font = "700 13px Arial";
+      drawText(context, metric.detail, x + 14, 208, 156);
+    }
+  });
+  downloadCanvas(canvas, "total-general.png");
+}
+
+function DownloadChartButton(props: { onDownload: () => void }) {
+  return (
+    <button className="icon-button compact-icon download-chart-button" type="button" title="Descargar gráfico" onClick={props.onDownload}>
+      <Download size={16} />
+    </button>
+  );
+}
+
 function StatsCharts(props: { rows: TypeStatsRow[] }) {
   const rows = props.rows.length ? props.rows : demoStats.type_rows;
   const totalResponses = rows.reduce((sum, row) => sum + row.response_count, 0);
@@ -1263,13 +1432,31 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
   const totalRespondentPlaces = rows.reduce((sum, row) => sum + row.respondent_available_places, 0);
   const totalOccupiedUnits = rows.reduce((sum, row) => sum + row.occupied_units, 0);
   const totalRespondentUnits = rows.reduce((sum, row) => sum + row.respondent_available_units, 0);
+  const totalMetrics = [
+    { label: "Respondientes", value: `${totalParticipantEstablishments}/${totalEstablishments}` },
+    { label: "Tasa de respuestas", value: formatPercent(percentFrom(totalResponses, totalExpectedResponses)) },
+    { label: "Respuestas", value: String(totalResponses) },
+    {
+      label: "Tasa ocupacion plazas",
+      value: formatPercent(percentFrom(totalOccupiedPlaces, totalRespondentPlaces)),
+      detail: `${totalOccupiedPlaces}/${totalRespondentPlaces}`,
+    },
+    {
+      label: "Tasa ocupacion unidades",
+      value: formatPercent(percentFrom(totalOccupiedUnits, totalRespondentUnits)),
+      detail: `${totalOccupiedUnits}/${totalRespondentUnits}`,
+    },
+  ];
 
   return (
     <div className="stats-charts">
       <div className="chart-card participation-chart">
         <div className="chart-heading">
           <h3>Nivel de participacion</h3>
-          <span>N={totalResponses}</span>
+          <div className="chart-heading-actions">
+            <span>N={totalResponses}</span>
+            <DownloadChartButton onDownload={() => downloadPieChart(rows, totalResponses)} />
+          </div>
         </div>
         <div className="pie-wrap">
           <div
@@ -1320,22 +1507,13 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
       <div className="chart-card totals-card">
         <div className="chart-heading">
           <h3>Total general</h3>
-          <span>Sobre establecimientos respondientes</span>
+          <div className="chart-heading-actions">
+            <span>Sobre establecimientos respondientes</span>
+            <DownloadChartButton onDownload={() => downloadTotalsChart(totalMetrics)} />
+          </div>
         </div>
         <div className="totals-grid">
-          <TotalMetric label="Respondientes" value={`${totalParticipantEstablishments}/${totalEstablishments}`} />
-          <TotalMetric label="Tasa de respuestas" value={formatPercent(percentFrom(totalResponses, totalExpectedResponses))} />
-          <TotalMetric label="Respuestas" value={String(totalResponses)} />
-          <TotalMetric
-            label="Tasa ocupacion plazas"
-            value={formatPercent(percentFrom(totalOccupiedPlaces, totalRespondentPlaces))}
-            detail={`${totalOccupiedPlaces}/${totalRespondentPlaces}`}
-          />
-          <TotalMetric
-            label="Tasa ocupacion unidades"
-            value={formatPercent(percentFrom(totalOccupiedUnits, totalRespondentUnits))}
-            detail={`${totalOccupiedUnits}/${totalRespondentUnits}`}
-          />
+          {totalMetrics.map((metric) => <TotalMetric key={metric.label} {...metric} />)}
         </div>
       </div>
     </div>
@@ -1366,7 +1544,10 @@ function BarChart(props: {
     <div className="chart-card">
       <div className="chart-heading">
         <h3>{props.title}</h3>
-        <span>{props.subtitle}</span>
+        <div className="chart-heading-actions">
+          <span>{props.subtitle}</span>
+          <DownloadChartButton onDownload={() => downloadBarChart(props.title, props.subtitle, props.rows, props.value, props.valueLabel)} />
+        </div>
       </div>
       <div className="bar-chart">
         {props.rows.map((row, index) => {

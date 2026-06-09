@@ -795,6 +795,19 @@ button.table-row {
   font-weight: 700;
 }
 
+.chart-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.download-chart-button {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
 .pie-wrap {
   display: grid;
   grid-template-columns: 170px 1fr;
