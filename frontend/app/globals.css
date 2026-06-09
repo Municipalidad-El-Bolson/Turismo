@@ -769,6 +769,10 @@ button.table-row {
   gap: 14px;
 }
 
+.download-all-button {
+  justify-self: end;
+}
+
 .chart-card {
   border: 1px solid var(--line);
   border-radius: 8px;

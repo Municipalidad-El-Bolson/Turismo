@@ -1297,18 +1297,29 @@ function downloadPieChart(rows: TypeStatsRow[], totalResponses: number) {
   const prepared = prepareCanvas(980, 560);
   if (!prepared) return;
   const { canvas, context } = prepared;
+  drawPieChartOnCanvas(context, rows, totalResponses, 40, 36);
+  downloadCanvas(canvas, "nivel-de-participacion.png");
+}
+
+function drawPieChartOnCanvas(
+  context: CanvasRenderingContext2D,
+  rows: TypeStatsRow[],
+  totalResponses: number,
+  x: number,
+  y: number,
+) {
   context.fillStyle = "#18201c";
   context.font = "700 28px Arial";
-  context.fillText("Nivel de participacion", 40, 46);
+  context.fillText("Nivel de participacion", x, y + 10);
   context.fillStyle = "#68736b";
   context.font = "700 16px Arial";
-  context.fillText(`N=${totalResponses}`, 40, 80);
+  context.fillText(`N=${totalResponses}`, x, y + 44);
 
   const values = rows.map((row) => row.response_count);
   const total = values.reduce((sum, value) => sum + value, 0);
-  const centerX = 260;
-  const centerY = 300;
-  const radius = 170;
+  const centerX = x + 220;
+  const centerY = y + 264;
+  const radius = 150;
   let startAngle = -Math.PI / 2;
   if (!total) {
     context.fillStyle = "#eef1ea";
@@ -1329,17 +1340,16 @@ function downloadPieChart(rows: TypeStatsRow[], totalResponses: number) {
   }
 
   rows.forEach((row, index) => {
-    const y = 170 + index * 48;
+    const legendY = y + 134 + index * 42;
     context.fillStyle = chartColors[index % chartColors.length];
-    context.fillRect(500, y - 7, 14, 14);
+    context.fillRect(x + 460, legendY - 7, 14, 14);
     context.fillStyle = "#23323f";
     context.font = "700 15px Arial";
-    drawText(context, row.accommodation_type, 526, y, 250);
+    drawText(context, row.accommodation_type, x + 486, legendY, 250);
     context.fillStyle = "#68736b";
     context.font = "14px Arial";
-    context.fillText(`${row.response_count} (${formatPercent(percentFrom(row.response_count, totalResponses))})`, 790, y);
+    context.fillText(`${row.response_count} (${formatPercent(percentFrom(row.response_count, totalResponses))})`, x + 750, legendY);
   });
-  downloadCanvas(canvas, "nivel-de-participacion.png");
 }
 
 function downloadBarChart(
@@ -1353,65 +1363,150 @@ function downloadBarChart(
   const prepared = prepareCanvas(980, height);
   if (!prepared) return;
   const { canvas, context } = prepared;
+  drawBarChartOnCanvas(context, title, subtitle, rows, value, valueLabel, 40, 36, 900, height - 52);
+  downloadCanvas(canvas, `${slugify(title)}.png`);
+}
+
+function drawBarChartOnCanvas(
+  context: CanvasRenderingContext2D,
+  title: string,
+  subtitle: string,
+  rows: TypeStatsRow[],
+  value: (row: TypeStatsRow) => number,
+  valueLabel: (value: number) => string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
   context.fillStyle = "#18201c";
   context.font = "700 28px Arial";
-  context.fillText(title, 40, 46);
+  context.fillText(title, x, y + 10);
   context.fillStyle = "#68736b";
   context.font = "700 16px Arial";
-  context.fillText(subtitle, 40, 80);
+  context.fillText(subtitle, x, y + 44);
 
   const values = rows.map(value);
   const max = Math.max(...values, 1);
+  const labelWidth = 260;
+  const valueWidth = 90;
+  const barX = x + labelWidth;
+  const barWidth = width - labelWidth - valueWidth - 30;
+  const rowGap = Math.max(30, Math.min(44, (height - 88) / Math.max(rows.length, 1)));
   rows.forEach((row, index) => {
-    const y = 130 + index * 44;
+    const rowY = y + 92 + index * rowGap;
     const current = value(row);
     context.fillStyle = "#23323f";
     context.font = "700 14px Arial";
-    drawText(context, row.accommodation_type, 40, y, 230);
+    drawText(context, row.accommodation_type, x, rowY, labelWidth - 30);
     context.fillStyle = "#e8ece5";
-    context.fillRect(300, y - 9, 500, 18);
+    context.fillRect(barX, rowY - 9, barWidth, 18);
     context.fillStyle = chartColors[index % chartColors.length];
-    context.fillRect(300, y - 9, Math.max((current / max) * 500, current > 0 ? 8 : 0), 18);
+    context.fillRect(barX, rowY - 9, Math.max((current / max) * barWidth, current > 0 ? 8 : 0), 18);
     context.fillStyle = "#23323f";
     context.font = "700 14px Arial";
     context.textAlign = "right";
-    context.fillText(valueLabel(current), 920, y);
+    context.fillText(valueLabel(current), x + width, rowY);
     context.textAlign = "left";
   });
-  downloadCanvas(canvas, `${slugify(title)}.png`);
 }
 
 function downloadTotalsChart(metrics: Array<{ label: string; value: string; detail?: string }>) {
   const prepared = prepareCanvas(1080, 280);
   if (!prepared) return;
   const { canvas, context } = prepared;
+  drawTotalsOnCanvas(context, metrics, 40, 36, 1000);
+  downloadCanvas(canvas, "total-general.png");
+}
+
+function drawTotalsOnCanvas(
+  context: CanvasRenderingContext2D,
+  metrics: Array<{ label: string; value: string; detail?: string }>,
+  x: number,
+  y: number,
+  width: number,
+) {
   context.fillStyle = "#18201c";
   context.font = "700 28px Arial";
-  context.fillText("Total general", 40, 46);
+  context.fillText("Total general", x, y + 10);
   context.fillStyle = "#68736b";
   context.font = "700 16px Arial";
-  context.fillText("Sobre establecimientos respondientes", 40, 80);
+  context.fillText("Sobre establecimientos respondientes", x, y + 44);
 
+  const itemWidth = (width - 40) / metrics.length;
   metrics.forEach((metric, index) => {
-    const x = 40 + index * 204;
+    const itemX = x + index * itemWidth;
     context.strokeStyle = "#cfdbea";
     context.fillStyle = "#eef5ff";
     context.lineWidth = 1;
-    context.fillRect(x, 116, 184, 112);
-    context.strokeRect(x, 116, 184, 112);
+    context.fillRect(itemX, y + 80, itemWidth - 20, 112);
+    context.strokeRect(itemX, y + 80, itemWidth - 20, 112);
     context.fillStyle = "#68736b";
     context.font = "700 13px Arial";
-    drawText(context, metric.label, x + 14, 142, 156);
+    drawText(context, metric.label, itemX + 14, y + 106, itemWidth - 48);
     context.fillStyle = "#2457a6";
     context.font = "700 28px Arial";
-    drawText(context, metric.value, x + 14, 176, 156);
+    drawText(context, metric.value, itemX + 14, y + 140, itemWidth - 48);
     if (metric.detail) {
       context.fillStyle = "#68736b";
       context.font = "700 13px Arial";
-      drawText(context, metric.detail, x + 14, 208, 156);
+      drawText(context, metric.detail, itemX + 14, y + 172, itemWidth - 48);
     }
   });
-  downloadCanvas(canvas, "total-general.png");
+}
+
+function downloadAllCharts(rows: TypeStatsRow[], metrics: Array<{ label: string; value: string; detail?: string }>, totalResponses: number) {
+  const barCharts = [
+    {
+      title: "Tasa de respuestas",
+      subtitle: "En porcentajes",
+      value: (row: TypeStatsRow) => row.response_rate_percent,
+      valueLabel: (value: number) => formatPercent(value),
+    },
+    {
+      title: "Cantidad de respuestas",
+      subtitle: "En cantidades",
+      value: (row: TypeStatsRow) => row.response_count,
+      valueLabel: (value: number) => String(Math.round(value)),
+    },
+    {
+      title: "Porcentaje de ocupacion",
+      subtitle: "Plazas ocupadas sobre plazas habilitadas",
+      value: (row: TypeStatsRow) => row.occupancy_rate_percent,
+      valueLabel: (value: number) => formatPercent(value),
+    },
+    {
+      title: "Porcentaje de unidades ocupadas",
+      subtitle: "Unidades ocupadas sobre unidades habilitadas",
+      value: (row: TypeStatsRow) => row.unit_occupancy_percent,
+      valueLabel: (value: number) => formatPercent(value),
+    },
+  ];
+  const barChartHeights = barCharts.map(() => Math.max(260, 105 + rows.length * 34));
+  const totalHeight = 120 + 420 + barChartHeights.reduce((sum, height) => sum + height + 28, 0) + 240;
+  const prepared = prepareCanvas(1200, totalHeight);
+  if (!prepared) return;
+  const { canvas, context } = prepared;
+
+  context.fillStyle = "#18201c";
+  context.font = "700 32px Arial";
+  context.fillText("Estadisticas de ocupacion", 40, 46);
+  context.fillStyle = "#68736b";
+  context.font = "700 16px Arial";
+  context.fillText("Graficos exportados desde el panel admin", 40, 82);
+
+  let offsetY = 120;
+  drawPieChartOnCanvas(context, rows, totalResponses, 40, offsetY);
+  offsetY += 420;
+
+  barCharts.forEach((chart, index) => {
+    const chartHeight = barChartHeights[index];
+    drawBarChartOnCanvas(context, chart.title, chart.subtitle, rows, chart.value, chart.valueLabel, 40, offsetY, 1120, chartHeight);
+    offsetY += chartHeight + 28;
+  });
+
+  drawTotalsOnCanvas(context, metrics, 40, offsetY, 1120);
+  downloadCanvas(canvas, "estadisticas-completas.png");
 }
 
 function DownloadChartButton(props: { onDownload: () => void }) {
@@ -1450,6 +1545,10 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
 
   return (
     <div className="stats-charts">
+      <button className="secondary-button download-all-button" type="button" onClick={() => downloadAllCharts(rows, totalMetrics, totalResponses)}>
+        <Download size={17} />
+        <span>Descargar todo</span>
+      </button>
       <div className="chart-card participation-chart">
         <div className="chart-heading">
           <h3>Nivel de participacion</h3>
