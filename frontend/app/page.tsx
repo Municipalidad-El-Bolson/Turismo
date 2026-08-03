@@ -540,7 +540,9 @@ export default function Home() {
         </button>
       </header>
 
-      <p className="notice">{message}</p>
+      {message && !message.startsWith("Backend no disponible") ? (
+        <p className="notice">{message}</p>
+      ) : null}
 
       {isAdmin ? (
         <AdminPanel
@@ -650,10 +652,6 @@ function EstablishmentPanel(props: {
         <div className={hasCurrentWeek ? "status ok" : "status warn"}>
           {hasCurrentWeek ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           <span>{loadStatus}</span>
-        </div>
-        <div className="status neutral">
-          <MessageCircle size={20} />
-          <span>Los recordatorios se abren en WhatsApp Web/app</span>
         </div>
       </section>
 
@@ -1814,6 +1812,7 @@ function DownloadChartButton(props: { onDownload: () => void }) {
 
 function StatsCharts(props: { rows: TypeStatsRow[] }) {
   const rows = props.rows.length ? props.rows : demoStats.type_rows;
+  const [activePieIndex, setActivePieIndex] = useState(0);
   const totalResponses = rows.reduce((sum, row) => sum + row.response_count, 0);
   const totalExpectedResponses = rows.reduce((sum, row) => sum + row.expected_responses, 0);
   const totalEstablishments = rows.reduce((sum, row) => sum + row.establishments, 0);
@@ -1837,6 +1836,11 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
       detail: `${totalOccupiedUnits}/${totalRespondentUnits}`,
     },
   ];
+  const activePieRow = rows[activePieIndex] ?? rows[0];
+  const activePiePercent = activePieRow ? percentFrom(activePieRow.response_count, totalResponses) : 0;
+  const pieRadius = 78;
+  const pieCircumference = 2 * Math.PI * pieRadius;
+  let pieOffset = 0;
 
   return (
     <div className="stats-charts">
@@ -1853,18 +1857,48 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
           </div>
         </div>
         <div className="pie-wrap">
-          <div
-            className="pie-chart"
-            style={{ background: buildPieGradient(rows.map((row) => row.response_count)) }}
-            aria-label="Participacion por tipo de alojamiento"
-          />
+          <div className="pie-chart-shell" aria-label="Participacion por tipo de alojamiento">
+            <svg className="pie-chart-svg" viewBox="0 0 200 200" role="img">
+              <circle className="pie-empty-ring" cx="100" cy="100" r={pieRadius} />
+              {totalResponses ? rows.map((row, index) => {
+                const segmentLength = (row.response_count / totalResponses) * pieCircumference;
+                const segmentOffset = pieOffset;
+                pieOffset += segmentLength;
+                return (
+                  <circle
+                    className={index === activePieIndex ? "pie-segment active" : "pie-segment"}
+                    cx="100"
+                    cy="100"
+                    key={row.accommodation_type}
+                    r={pieRadius}
+                    stroke={chartColors[index % chartColors.length]}
+                    strokeDasharray={`${segmentLength} ${pieCircumference - segmentLength}`}
+                    strokeDashoffset={-segmentOffset}
+                    onMouseEnter={() => setActivePieIndex(index)}
+                    onClick={() => setActivePieIndex(index)}
+                  />
+                );
+              }) : null}
+            </svg>
+            <div className="pie-center">
+              <span>{activePieRow?.accommodation_type ?? "Sin datos"}</span>
+              <strong>{activePieRow ? formatPercent(activePiePercent) : "0%"}</strong>
+              <small>{activePieRow?.response_count ?? 0} respuestas</small>
+            </div>
+          </div>
           <div className="chart-legend">
             {rows.map((row, index) => (
-              <div key={row.accommodation_type}>
+              <button
+                className={index === activePieIndex ? "legend-button active" : "legend-button"}
+                key={row.accommodation_type}
+                type="button"
+                onClick={() => setActivePieIndex(index)}
+                onMouseEnter={() => setActivePieIndex(index)}
+              >
                 <span className="legend-dot" style={{ background: chartColors[index % chartColors.length] }} />
                 <strong>{row.accommodation_type}</strong>
                 <span>{row.response_count} ({formatPercent(percentFrom(row.response_count, totalResponses))})</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
