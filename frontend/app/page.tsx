@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   AlertTriangle,
@@ -392,9 +392,6 @@ export default function Home() {
 
   async function openEstablishmentProfile(establishment: EstablishmentSummary) {
     setSelectedProfile(establishment);
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
     if (!user) {
       setSelectedProfileEntries([]);
       return;
@@ -901,6 +898,30 @@ function AdminPanel(props: {
       ? selectedMonthHasData
       : true;
 
+  useEffect(() => {
+    if (!props.selectedProfile && !communicationOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (communicationOpen) {
+        setCommunicationOpen(false);
+        return;
+      }
+      if (props.selectedProfile) {
+        closeProfileModal();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [communicationOpen, props.selectedProfile]);
+
   function submitEstablishment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     props.onCreateEstablishment({
@@ -963,9 +984,6 @@ function AdminPanel(props: {
     const nextTargetId = establishmentId || props.selectedProfile?.id || pendingId || communicationTargets[0]?.id || "";
     setCommunicationTargetId(nextTargetId);
     setCommunicationOpen(true);
-    window.setTimeout(() => {
-      document.getElementById("comunicacion-asistida")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
   }
 
   function targetHasPhone(establishmentId: string) {
@@ -980,12 +998,18 @@ function AdminPanel(props: {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function closeProfileModal() {
+    setEditingProfile(false);
+    props.onCloseProfile();
+  }
+
   return (
     <section className="admin-layout">
       {props.selectedProfile ? (
-        <section className="panel profile-panel">
+        <div className="modal-backdrop" role="presentation" onMouseDown={closeProfileModal}>
+        <section className="panel profile-panel modal-card profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" onMouseDown={(event) => event.stopPropagation()}>
           <div className="profile-actions">
-            <button className="secondary-button back-button" type="button" onClick={props.onCloseProfile}>
+            <button className="secondary-button back-button" type="button" onClick={closeProfileModal}>
               <ArrowLeft size={18} />
               <span>Volver</span>
             </button>
@@ -1015,7 +1039,7 @@ function AdminPanel(props: {
           <div className="profile-head">
             <div>
               <p className="eyebrow">Perfil de establecimiento</p>
-              <h2>{props.selectedProfile.accommodation_name ?? props.selectedProfile.establishment_name}</h2>
+              <h2 id="profile-modal-title">{props.selectedProfile.accommodation_name ?? props.selectedProfile.establishment_name}</h2>
             </div>
             <div className="profile-id-actions">
               <strong className="profile-id">{props.selectedProfile.id}</strong>
@@ -1073,13 +1097,15 @@ function AdminPanel(props: {
             ))}
           </div>
         </section>
+        </div>
       ) : null}
       {communicationOpen ? (
-        <section className="assisted-communication-panel" id="comunicacion-asistida">
+        <div className="modal-backdrop communication-backdrop" role="presentation" onMouseDown={() => setCommunicationOpen(false)}>
+        <section className="assisted-communication-panel modal-card communication-modal" id="comunicacion-asistida" role="dialog" aria-modal="true" aria-labelledby="communication-modal-title" onMouseDown={(event) => event.stopPropagation()}>
           <div className="assisted-communication-header">
             <strong>
               <MessageCircle size={17} />
-              Comunicacion asistida
+              <span id="communication-modal-title">Comunicacion asistida</span>
             </strong>
             <div className="assisted-heading-actions">
               <span>WhatsApp abre el mensaje listo para revisar y enviar</span>
@@ -1095,57 +1121,74 @@ function AdminPanel(props: {
             </div>
           </div>
           <div className="assisted-communication-body">
-            <div className="assisted-form-grid">
-              <label>
-                Asunto / plantilla
-                <select value={communicationTemplate} onChange={(event) => setCommunicationTemplate(event.target.value)}>
-                  {communicationTemplates.map((template) => (
-                    <option key={template.value} value={template.value}>{template.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Telefono WhatsApp
-                {communicationTargets.length ? (
-                  <select value={selectedCommunicationTarget?.id ?? ""} onChange={(event) => setCommunicationTargetId(event.target.value)}>
-                    {communicationTargets.map((target) => (
-                      <option key={target.id} value={target.id}>
-                        {(target.phone ?? target.whatsapp) || "Sin telefono"} - {target.accommodation_name ?? target.establishment_name}
-                      </option>
+            <aside className="assisted-summary-card">
+              <div className="summary-icon">
+                <MessageCircle size={24} />
+              </div>
+              <div>
+                <h3>Mensaje listo para revisar</h3>
+                <p>Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado.</p>
+              </div>
+              <div className="assisted-recipient">
+                <span>Destinatario</span>
+                <strong>{selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "Sin telefono disponible"}</strong>
+                <small>{selectedCommunicationTarget?.phone ?? selectedCommunicationTarget?.whatsapp ?? "Agrega un telefono al perfil"}</small>
+              </div>
+            </aside>
+            <div className="assisted-workspace">
+              <div className="assisted-form-grid">
+                <label>
+                  Asunto / plantilla
+                  <select value={communicationTemplate} onChange={(event) => setCommunicationTemplate(event.target.value)}>
+                    {communicationTemplates.map((template) => (
+                      <option key={template.value} value={template.value}>{template.label}</option>
                     ))}
                   </select>
-                ) : (
-                  <input value="Sin telefono cargado" disabled />
-                )}
-              </label>
-              <label>
-                Detalle para completar el mensaje
-                <input
-                  value={communicationDetail}
-                  onChange={(event) => setCommunicationDetail(event.target.value)}
-                  placeholder="Ej.: falta cargar unidades / revisar plazas / coordinar respuesta"
-                />
-              </label>
-            </div>
-            <div className="assisted-preview-row">
-              <label className="assisted-preview">
-                Vista previa
-                <textarea readOnly value={communicationMessage} />
-              </label>
-              <div className="assisted-send-area">
-                <button
-                  className="primary-button whatsapp-send-button"
-                  type="button"
-                  onClick={sendAssistedWhatsApp}
-                  disabled={!selectedCommunicationTarget}
-                >
-                  <MessageCircle size={17} />
-                  <span>Enviar WhatsApp</span>
-                </button>
+                </label>
+                <label>
+                  Telefono WhatsApp
+                  {communicationTargets.length ? (
+                    <select value={selectedCommunicationTarget?.id ?? ""} onChange={(event) => setCommunicationTargetId(event.target.value)}>
+                      {communicationTargets.map((target) => (
+                        <option key={target.id} value={target.id}>
+                          {(target.phone ?? target.whatsapp) || "Sin telefono"} - {target.accommodation_name ?? target.establishment_name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value="Sin telefono cargado" disabled />
+                  )}
+                </label>
+                <label>
+                  Detalle para completar el mensaje
+                  <input
+                    value={communicationDetail}
+                    onChange={(event) => setCommunicationDetail(event.target.value)}
+                    placeholder="Ej.: falta cargar unidades / revisar plazas / coordinar respuesta"
+                  />
+                </label>
+              </div>
+              <div className="assisted-preview-row">
+                <label className="assisted-preview">
+                  Vista previa
+                  <textarea readOnly value={communicationMessage} />
+                </label>
+                <div className="assisted-send-area">
+                  <button
+                    className="primary-button whatsapp-send-button"
+                    type="button"
+                    onClick={sendAssistedWhatsApp}
+                    disabled={!selectedCommunicationTarget}
+                  >
+                    <MessageCircle size={17} />
+                    <span>Enviar WhatsApp</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </section>
+        </div>
       ) : null}
       <div className="admin-grid">
       <div className="panel">

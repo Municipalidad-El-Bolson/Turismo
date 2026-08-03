@@ -272,6 +272,40 @@ h2 {
   order: 3;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(27, 41, 29, 0.72), rgba(37, 70, 58, 0.52)),
+    rgba(18, 28, 21, 0.58);
+  padding: 24px;
+}
+
+.communication-backdrop {
+  z-index: 50;
+}
+
+.modal-card {
+  width: min(1120px, 100%);
+  max-height: min(88vh, 920px);
+  overflow: auto;
+  box-shadow: 0 24px 70px rgba(25, 35, 28, 0.28);
+}
+
+.profile-modal {
+  border: 1px solid #d7e5d6;
+  background:
+    linear-gradient(180deg, rgba(237, 248, 241, 0.92), rgba(255, 255, 255, 0.98) 190px),
+    #ffffff;
+}
+
+.communication-modal {
+  width: min(1180px, 100%);
+}
+
 .compliance-panel {
   display: flex;
   flex-direction: column;
@@ -479,10 +513,12 @@ form {
 
 .assisted-communication-panel {
   overflow: hidden;
-  border: 1px solid #a8dfcb;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: var(--shadow);
+  border: 1px solid #90d9bd;
+  border-radius: 14px;
+  background:
+    linear-gradient(160deg, rgba(235, 250, 241, 0.96), rgba(255, 255, 255, 0.98) 46%),
+    #ffffff;
+  box-shadow: 0 24px 70px rgba(16, 84, 54, 0.24);
 }
 
 .assisted-communication-header {
@@ -490,9 +526,11 @@ form {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #d5f0e6;
-  background: #eaf9f2;
-  padding: 14px 16px;
+  border-bottom: 1px solid #ccefe0;
+  background:
+    linear-gradient(135deg, rgba(222, 248, 236, 0.96), rgba(240, 252, 245, 0.96)),
+    #eaf9f2;
+  padding: 16px 18px;
 }
 
 .assisted-communication-header strong,
@@ -506,6 +544,11 @@ form {
   color: #16824f;
 }
 
+.assisted-communication-header strong {
+  color: #173c2a;
+  font-size: 18px;
+}
+
 .assisted-heading-actions span {
   color: var(--muted);
   font-size: 11px;
@@ -516,8 +559,69 @@ form {
 
 .assisted-communication-body {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
   padding: 18px;
+}
+
+.assisted-summary-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border: 1px solid #cae9d9;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #f3fbf6, #ffffff);
+  padding: 16px;
+}
+
+.assisted-summary-card .summary-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #dff5e8;
+  color: #16824f;
+}
+
+.assisted-summary-card h3 {
+  font-size: 20px;
+}
+
+.assisted-summary-card p {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.assisted-recipient {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid #dceee4;
+  padding-top: 12px;
+}
+
+.assisted-recipient span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.assisted-recipient strong {
+  color: var(--ink);
+}
+
+.assisted-recipient small {
+  color: #16824f;
+  font-weight: 800;
+}
+
+.assisted-workspace {
+  display: grid;
+  gap: 14px;
 }
 
 .assisted-form-grid {
@@ -539,7 +643,10 @@ form {
 
 .assisted-preview textarea {
   min-height: 172px;
+  border-color: #cfe3d9;
+  background: #fbfefa;
   resize: vertical;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -1153,10 +1260,20 @@ button.table-row {
   .field-grid,
   .toolbar,
   .stats-filter-grid,
+  .assisted-communication-body,
   .assisted-form-grid,
   .assisted-preview-row,
   .establishment-form {
     grid-template-columns: 1fr;
+  }
+
+  .modal-backdrop {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: calc(100vh - 24px);
   }
 
   .assisted-communication-header,
