@@ -459,7 +459,7 @@ export default function Home() {
     return (
       <main className="shell">
         <section className="login">
-          <div>
+          <div className="login-hero-panel">
             <div className="brand-lockup">
               <LogoMark className="brand-logo hero-logo" src="/el-bolson-login-logo.png" />
               <p className="eyebrow">Turismo MEB</p>
@@ -468,6 +468,11 @@ export default function Home() {
             <p className="lede">
               Ingreso simple para establecimientos y tablero de seguimiento para usuarios MEB.
             </p>
+            <div className="login-highlight-grid">
+              <span>Ocupacion</span>
+              <span>Cumplimiento</span>
+              <span>Estadisticas</span>
+            </div>
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
             <form className="login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
