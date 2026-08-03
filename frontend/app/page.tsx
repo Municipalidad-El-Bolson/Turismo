@@ -658,7 +658,7 @@ function EstablishmentPanel(props: {
       </section>
 
       <section className="workspace-grid">
-        <form className="panel" onSubmit={(event) => { event.preventDefault(); props.onSave(); }}>
+        <form className="panel merchant-load-panel" onSubmit={(event) => { event.preventDefault(); props.onSave(); }}>
           <div className="panel-title">
             <CalendarDays size={21} />
             <h2>Carga diaria</h2>
@@ -731,7 +731,7 @@ function EstablishmentPanel(props: {
           </button>
         </form>
 
-        <section className="panel">
+        <section className="panel merchant-history-panel">
           <div className="panel-title">
             <ClipboardList size={21} />
             <h2>Cargas previas</h2>
