@@ -841,6 +841,7 @@ function AdminPanel(props: {
   const [communicationTargetId, setCommunicationTargetId] = useState("");
   const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
   const [communicationDetail, setCommunicationDetail] = useState("");
+  const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance">("dashboard");
 
   const filteredEstablishments = useMemo(() => {
     const query = establishmentSearch.trim().toLowerCase();
@@ -876,6 +877,11 @@ function AdminPanel(props: {
   }, [complianceSearch, complianceStatusFilter, props.compliance]);
 
   const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
+  const completedCompliance = props.compliance.filter((item) => item.completed).length;
+  const pendingCompliance = Math.max(props.compliance.length - completedCompliance, 0);
+  const complianceRate = props.compliance.length ? Math.round((completedCompliance / props.compliance.length) * 100) : 0;
+  const totalPlaces = props.establishments.reduce((sum, item) => sum + (item.places ?? 0), 0);
+  const totalUnits = props.establishments.reduce((sum, item) => sum + (item.units ?? 0), 0);
   const communicationTargets = useMemo(
     () => props.establishments.filter((item) => item.phone || item.whatsapp),
     [props.establishments],
@@ -1190,8 +1196,59 @@ function AdminPanel(props: {
         </section>
         </div>
       ) : null}
-      <div className="admin-grid">
-      <div className="panel">
+      <section className="admin-command-center">
+        <button className={adminView === "dashboard" ? "command-button active" : "command-button"} type="button" onClick={() => setAdminView("dashboard")}>
+          <BarChart3 size={22} />
+          <span>Dashboard</span>
+          <small>Graficos y resumen general</small>
+        </button>
+        <button className={adminView === "create" ? "command-button active" : "command-button"} type="button" onClick={() => setAdminView("create")}>
+          <Plus size={22} />
+          <span>Crear</span>
+          <small>Alta y lista de establecimientos</small>
+        </button>
+        <button className={adminView === "compliance" ? "command-button active" : "command-button"} type="button" onClick={() => setAdminView("compliance")}>
+          <Users size={22} />
+          <span>Cumplimiento</span>
+          <small>{pendingCompliance} pendientes</small>
+        </button>
+      </section>
+
+      {adminView === "dashboard" ? (
+      <section className="dashboard-view">
+        <div className="dashboard-hero">
+          <div>
+            <p className="eyebrow">Panel MEB</p>
+            <h2>Dashboard de ocupacion turistica</h2>
+            <p>Vista general para seguir participacion, respuestas y ocupacion por tipo de alojamiento.</p>
+          </div>
+          <div className="dashboard-hero-mark">
+            <LogoMark className="dashboard-logo" />
+          </div>
+        </div>
+        <div className="dashboard-metrics">
+          <div className="dashboard-metric-card">
+            <span>Establecimientos</span>
+            <strong>{props.establishments.length}</strong>
+            <small>{missingPhones} sin telefono</small>
+          </div>
+          <div className="dashboard-metric-card green-card">
+            <span>Cumplimiento</span>
+            <strong>{complianceRate}%</strong>
+            <small>{completedCompliance}/{props.compliance.length} completos</small>
+          </div>
+          <div className="dashboard-metric-card amber-card">
+            <span>Pendientes</span>
+            <strong>{pendingCompliance}</strong>
+            <small>para el periodo elegido</small>
+          </div>
+          <div className="dashboard-metric-card blue-card">
+            <span>Capacidad cargada</span>
+            <strong>{totalPlaces}</strong>
+            <small>{totalUnits} unidades</small>
+          </div>
+        </div>
+      <div className="panel dashboard-stats-panel">
         <div className="panel-header">
           <div className="panel-title">
             <BarChart3 size={21} />
@@ -1273,8 +1330,11 @@ function AdminPanel(props: {
         ) : null}
         <StatsCharts rows={props.stats.type_rows} />
       </div>
+      </section>
+      ) : null}
 
-      <div className="panel compliance-panel">
+      {adminView === "compliance" ? (
+      <section className="panel compliance-panel dashboard-section-panel">
         <div className="panel-header">
           <div className="panel-title">
             <Users size={21} />
@@ -1335,10 +1395,11 @@ function AdminPanel(props: {
             </div>
           ))}
         </div>
-      </div>
-      </div>
+      </section>
+      ) : null}
 
-      <section className="panel establishments-panel">
+      {adminView === "create" ? (
+      <section className="panel establishments-panel dashboard-section-panel">
         <div className="panel-header">
           <div className="panel-title">
             <Plus size={21} />
@@ -1467,6 +1528,7 @@ function AdminPanel(props: {
           ) : null}
         </div>
       </section>
+      ) : null}
     </section>
   );
 }
