@@ -37,10 +37,7 @@ from .schemas import (
     StatsResponse,
     User,
     UserRole,
-    WhatsAppBulkResult,
-    WhatsAppSendResult,
 )
-from .whatsapp import build_reminder_message, send_whatsapp_text
 
 app = FastAPI(title="Turismo MEB API", version="0.1.0")
 
@@ -273,46 +270,6 @@ async def build_compliance_statuses(week_start: date, compliance_period: str = "
             )
         )
     return statuses
-
-
-@app.post("/admin/whatsapp/reminders/{establishment_id}", response_model=WhatsAppSendResult)
-async def send_establishment_reminder(
-    establishment_id: str,
-    week_start: date,
-    _: User = Depends(require_admin),
-) -> WhatsAppSendResult:
-    establishment = await find_user(establishment_id)
-    if not establishment or establishment["role"] != UserRole.ESTABLISHMENT:
-        raise HTTPException(status_code=404, detail="Establishment not found")
-
-    user = serialize_user(establishment)
-    phone = user["phone"] or user["whatsapp"]
-    message = build_reminder_message(user["establishment_name"] or user["display_name"], week_start.isoformat())
-    result = await send_whatsapp_text(phone, message)
-    return WhatsAppSendResult(
-        establishment_id=user["id"],
-        establishment_name=user["establishment_name"] or user["display_name"],
-        to=result["to"],
-        sent=result["sent"],
-        dry_run=result["dry_run"],
-        message=result["message"],
-        detail=result["detail"],
-    )
-
-
-@app.post("/admin/whatsapp/reminders", response_model=WhatsAppBulkResult)
-async def send_missing_reminders(
-    week_start: date,
-    compliance_period: str = Query("week", pattern="^(week|fortnight|month)$"),
-    _: User = Depends(require_admin),
-) -> WhatsAppBulkResult:
-    statuses = await build_compliance_statuses(week_start, compliance_period)
-    results: list[WhatsAppSendResult] = []
-    for status in statuses:
-        if status.completed:
-            continue
-        results.append(await send_establishment_reminder(status.establishment_id, week_start, _))
-    return WhatsAppBulkResult(week_start=week_start, results=results)
 
 
 @app.get("/admin/stats", response_model=StatsResponse)

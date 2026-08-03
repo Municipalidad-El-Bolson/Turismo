@@ -82,16 +82,6 @@ export type StatsAvailability = {
   months_by_year: Record<string, number[]>;
 };
 
-export type WhatsAppSendResult = {
-  establishment_id: string;
-  establishment_name: string;
-  to: string;
-  sent: boolean;
-  dry_run: boolean;
-  message: string;
-  detail?: unknown;
-};
-
 export type EstablishmentSummary = {
   id: string;
   establishment_name: string;
@@ -199,16 +189,6 @@ export const api = {
     request<void>(`/establishments/${establishmentId}/entries/${weekStart}?userId=${userId}`, {
       method: "DELETE",
     }),
-  sendReminder: (userId: string, establishmentId: string, weekStart: string) =>
-    request<WhatsAppSendResult>(
-      `/admin/whatsapp/reminders/${establishmentId}?userId=${userId}&week_start=${weekStart}`,
-      { method: "POST" },
-    ),
-  sendMissingReminders: (userId: string, weekStart: string, compliancePeriod: string) =>
-    request<{ week_start: string; results: WhatsAppSendResult[] }>(
-      `/admin/whatsapp/reminders?userId=${userId}&week_start=${weekStart}&compliance_period=${compliancePeriod}`,
-      { method: "POST" },
-    ),
 };
 
 export const demoUsers: User[] = [

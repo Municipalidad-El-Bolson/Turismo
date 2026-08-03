@@ -477,6 +477,88 @@ form {
   margin-bottom: 0;
 }
 
+.assisted-communication-panel {
+  overflow: hidden;
+  border: 1px solid #a8dfcb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.assisted-communication-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #d5f0e6;
+  background: #eaf9f2;
+  padding: 14px 16px;
+}
+
+.assisted-communication-header strong,
+.assisted-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assisted-communication-header strong svg {
+  color: #16824f;
+}
+
+.assisted-heading-actions span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.assisted-communication-body {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.assisted-form-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) minmax(280px, 2fr);
+  gap: 14px;
+}
+
+.assisted-preview-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(170px, 1fr);
+  align-items: end;
+  gap: 14px;
+}
+
+.assisted-preview {
+  margin-bottom: 0;
+}
+
+.assisted-preview textarea {
+  min-height: 172px;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+.assisted-send-area {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
+.whatsapp-send-button {
+  width: auto;
+  min-width: 168px;
+  background: #17a64a;
+}
+
+.whatsapp-send-button:hover {
+  background: #12863c;
+}
+
 .stats-filter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1071,8 +1153,22 @@ button.table-row {
   .field-grid,
   .toolbar,
   .stats-filter-grid,
+  .assisted-form-grid,
+  .assisted-preview-row,
   .establishment-form {
     grid-template-columns: 1fr;
+  }
+
+  .assisted-communication-header,
+  .assisted-heading-actions {
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .assisted-send-area,
+  .whatsapp-send-button {
+    width: 100%;
   }
 
   .profile-head,

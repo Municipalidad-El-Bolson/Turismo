@@ -21,6 +21,7 @@ import {
   Save,
   Search,
   Users,
+  X,
 } from "lucide-react";
 import {
   Compliance,
@@ -132,6 +133,63 @@ function LogoMark(props: { className?: string; src?: string }) {
       alt="Turismo El Bolson"
     />
   );
+}
+
+function normalizeWhatsAppPhone(phone?: string) {
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith("0")) {
+    digits = digits.replace(/^0+/, "");
+  }
+  if (digits.startsWith("54")) {
+    return digits;
+  }
+  return digits ? `54${digits}` : "";
+}
+
+const communicationTemplates = [
+  { value: "load_reminder", label: "Recordatorio de carga" },
+  { value: "missing_data", label: "Falta completar datos" },
+  { value: "admin_notice", label: "Aviso administrativo" },
+  { value: "custom", label: "Mensaje personalizado" },
+];
+
+function buildAssistedMessage(template: string, establishmentName: string, detail: string, periodStart: string) {
+  const cleanDetail = detail.trim() || "Sin detalle adicional.";
+
+  if (template === "missing_data") {
+    return (
+      `Hola, ${establishmentName}. Desde Turismo MEB te informamos que tu carga del periodo iniciado el ${periodStart} quedo incompleta.\n\n` +
+      `Detalle: ${cleanDetail}\n\n` +
+      "Por favor, revisa la informacion cargada para completar el registro.\n\nMuchas gracias."
+    );
+  }
+
+  if (template === "admin_notice") {
+    return (
+      `Hola, ${establishmentName}. Desde Turismo MEB necesitamos comunicarnos por una consulta administrativa vinculada al establecimiento.\n\n` +
+      `Detalle: ${cleanDetail}\n\n` +
+      "Por favor, responde este mensaje cuando puedas.\n\nMuchas gracias."
+    );
+  }
+
+  if (template === "custom") {
+    return cleanDetail;
+  }
+
+  return (
+    `Hola, ${establishmentName}. Te recordamos cargar la informacion de ocupacion correspondiente al periodo iniciado el ${periodStart} en el sistema de Turismo MEB.\n\n` +
+    `Detalle: ${cleanDetail}\n\nMuchas gracias.`
+  );
+}
+
+function buildWhatsAppDeepLink(phone: string | undefined, message: string) {
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+  if (!normalizedPhone) return "";
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
 }
 
 export default function Home() {
@@ -349,26 +407,45 @@ export default function Home() {
     }
   }
 
-  async function sendReminder(establishmentId: string) {
-    if (!user) return;
-    try {
-      const result = await api.sendReminder(user.id, establishmentId, weekStart);
-      setMessage(result.dry_run ? `Simulacion WhatsApp para ${result.to || establishmentId}.` : `WhatsApp enviado a ${result.to}.`);
-    } catch {
-      setMessage("No se pudo enviar el recordatorio de WhatsApp.");
+  function sendReminder(establishmentId: string) {
+    const establishment = establishments.find((item) => item.id === establishmentId);
+    if (!establishment) {
+      setMessage("No se encontro el establecimiento para abrir WhatsApp.");
+      return;
     }
+    const message = buildAssistedMessage(
+      "load_reminder",
+      establishment.accommodation_name ?? establishment.establishment_name,
+      "",
+      weekStart,
+    );
+    const url = buildWhatsAppDeepLink(establishment.phone ?? establishment.whatsapp, message);
+    if (!url) {
+      setMessage("Ese establecimiento no tiene telefono para WhatsApp.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    setMessage("Se abrio WhatsApp con el mensaje preparado. El envio final se confirma en WhatsApp Web/app.");
   }
 
-  async function sendMissingReminders() {
-    if (!user) return;
-    try {
-      const result = await api.sendMissingReminders(user.id, weekStart, compliancePeriod);
-      const sent = result.results.filter((item) => item.sent).length;
-      const dryRun = result.results.filter((item) => item.dry_run).length;
-      setMessage(`Recordatorios procesados: ${result.results.length}. Enviados: ${sent}. Simulados: ${dryRun}.`);
-    } catch {
-      setMessage("No se pudieron enviar los recordatorios pendientes.");
-    }
+  function sendMissingReminders() {
+    const pending = compliance.filter((item) => !item.completed);
+    let opened = 0;
+    pending.forEach((item) => {
+      const establishment = establishments.find((candidate) => candidate.id === item.establishment_id);
+      const establishmentName = establishment?.accommodation_name ?? item.establishment_name;
+      const phone = establishment?.phone ?? establishment?.whatsapp ?? item.whatsapp;
+      const message = buildAssistedMessage("load_reminder", establishmentName, "", weekStart);
+      const url = buildWhatsAppDeepLink(phone, message);
+      if (!url) return;
+      window.open(url, "_blank", "noopener,noreferrer");
+      opened += 1;
+    });
+    setMessage(
+      opened
+        ? `Se prepararon ${opened} enlaces de WhatsApp para pendientes. El envio final queda en WhatsApp Web/app.`
+        : "No hay pendientes con telefono para abrir WhatsApp.",
+    );
   }
 
   function openComplianceProfile(item: Compliance) {
@@ -579,7 +656,7 @@ function EstablishmentPanel(props: {
         </div>
         <div className="status neutral">
           <MessageCircle size={20} />
-          <span>Recordatorio WhatsApp preparado para futuras integraciones</span>
+          <span>Los recordatorios se abren en WhatsApp Web/app</span>
         </div>
       </section>
 
@@ -763,6 +840,10 @@ function AdminPanel(props: {
   const [establishmentSearch, setEstablishmentSearch] = useState("");
   const [complianceSearch, setComplianceSearch] = useState("");
   const [complianceStatusFilter, setComplianceStatusFilter] = useState("all");
+  const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [communicationTargetId, setCommunicationTargetId] = useState("");
+  const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
+  const [communicationDetail, setCommunicationDetail] = useState("");
 
   const filteredEstablishments = useMemo(() => {
     const query = establishmentSearch.trim().toLowerCase();
@@ -798,6 +879,20 @@ function AdminPanel(props: {
   }, [complianceSearch, complianceStatusFilter, props.compliance]);
 
   const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
+  const communicationTargets = useMemo(
+    () => props.establishments.filter((item) => item.phone || item.whatsapp),
+    [props.establishments],
+  );
+  const selectedCommunicationTarget = useMemo(
+    () => communicationTargets.find((item) => item.id === communicationTargetId) ?? communicationTargets[0],
+    [communicationTargetId, communicationTargets],
+  );
+  const communicationMessage = buildAssistedMessage(
+    communicationTemplate,
+    selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "establecimiento",
+    communicationDetail,
+    props.weekStart,
+  );
   const selectedYearHasData = hasYearData(props.statsAvailability, props.statsYear);
   const selectedMonthHasData = hasMonthData(props.statsAvailability, props.statsYear, props.statsMonth);
   const selectedPeriodHasData = props.period === "yearly"
@@ -863,6 +958,28 @@ function AdminPanel(props: {
     }
   }
 
+  function openCommunication(establishmentId?: string) {
+    const pendingId = filteredCompliance.find((item) => !item.completed && (item.whatsapp || props.establishments.find((est) => est.id === item.establishment_id)?.phone))?.establishment_id;
+    const nextTargetId = establishmentId || props.selectedProfile?.id || pendingId || communicationTargets[0]?.id || "";
+    setCommunicationTargetId(nextTargetId);
+    setCommunicationOpen(true);
+    window.setTimeout(() => {
+      document.getElementById("comunicacion-asistida")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function targetHasPhone(establishmentId: string) {
+    const establishment = props.establishments.find((item) => item.id === establishmentId);
+    return Boolean(establishment?.phone || establishment?.whatsapp);
+  }
+
+  function sendAssistedWhatsApp() {
+    const phone = selectedCommunicationTarget?.phone ?? selectedCommunicationTarget?.whatsapp;
+    const url = buildWhatsAppDeepLink(phone, communicationMessage);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section className="admin-layout">
       {props.selectedProfile ? (
@@ -905,7 +1022,7 @@ function AdminPanel(props: {
               <button
                 className="secondary-button inline-button"
                 type="button"
-                onClick={() => props.onSendReminder(props.selectedProfile!.id)}
+                onClick={() => openCommunication(props.selectedProfile!.id)}
                 disabled={!props.selectedProfile.phone && !props.selectedProfile.whatsapp}
               >
                 <MessageSquareText size={18} />
@@ -954,6 +1071,79 @@ function AdminPanel(props: {
                 <strong>{entry.occupied_units}</strong>
               </div>
             ))}
+          </div>
+        </section>
+      ) : null}
+      {communicationOpen ? (
+        <section className="assisted-communication-panel" id="comunicacion-asistida">
+          <div className="assisted-communication-header">
+            <strong>
+              <MessageCircle size={17} />
+              Comunicacion asistida
+            </strong>
+            <div className="assisted-heading-actions">
+              <span>WhatsApp abre el mensaje listo para revisar y enviar</span>
+              <button
+                className="icon-button"
+                type="button"
+                title="Cerrar comunicacion"
+                aria-label="Cerrar comunicacion"
+                onClick={() => setCommunicationOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          <div className="assisted-communication-body">
+            <div className="assisted-form-grid">
+              <label>
+                Asunto / plantilla
+                <select value={communicationTemplate} onChange={(event) => setCommunicationTemplate(event.target.value)}>
+                  {communicationTemplates.map((template) => (
+                    <option key={template.value} value={template.value}>{template.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Telefono WhatsApp
+                {communicationTargets.length ? (
+                  <select value={selectedCommunicationTarget?.id ?? ""} onChange={(event) => setCommunicationTargetId(event.target.value)}>
+                    {communicationTargets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {(target.phone ?? target.whatsapp) || "Sin telefono"} - {target.accommodation_name ?? target.establishment_name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value="Sin telefono cargado" disabled />
+                )}
+              </label>
+              <label>
+                Detalle para completar el mensaje
+                <input
+                  value={communicationDetail}
+                  onChange={(event) => setCommunicationDetail(event.target.value)}
+                  placeholder="Ej.: falta cargar unidades / revisar plazas / coordinar respuesta"
+                />
+              </label>
+            </div>
+            <div className="assisted-preview-row">
+              <label className="assisted-preview">
+                Vista previa
+                <textarea readOnly value={communicationMessage} />
+              </label>
+              <div className="assisted-send-area">
+                <button
+                  className="primary-button whatsapp-send-button"
+                  type="button"
+                  onClick={sendAssistedWhatsApp}
+                  disabled={!selectedCommunicationTarget}
+                >
+                  <MessageCircle size={17} />
+                  <span>Enviar WhatsApp</span>
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       ) : null}
@@ -1073,7 +1263,7 @@ function AdminPanel(props: {
               onChange={(event) => setComplianceSearch(event.target.value)}
             />
           </div>
-          <button className="primary-button reminder-all" type="button" onClick={props.onSendMissingReminders}>
+          <button className="primary-button reminder-all" type="button" onClick={() => openCommunication()}>
             <MessageSquareText size={18} />
             <span>Recordar pendientes</span>
           </button>
@@ -1093,9 +1283,9 @@ function AdminPanel(props: {
               <button
                 className="icon-button compact-icon"
                 type="button"
-                title="Enviar recordatorio"
-                onClick={() => props.onSendReminder(item.establishment_id)}
-                disabled={!item.whatsapp}
+                title="Abrir WhatsApp"
+                onClick={() => openCommunication(item.establishment_id)}
+                disabled={!targetHasPhone(item.establishment_id)}
               >
                 <MessageSquareText size={17} />
               </button>

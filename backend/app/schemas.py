@@ -141,18 +141,3 @@ class StatsResponse(BaseModel):
 class StatsAvailability(BaseModel):
     years: list[int]
     months_by_year: dict[str, list[int]]
-
-
-class WhatsAppSendResult(BaseModel):
-    establishment_id: str
-    establishment_name: str
-    to: str
-    sent: bool
-    dry_run: bool
-    message: str
-    detail: object | None = None
-
-
-class WhatsAppBulkResult(BaseModel):
-    week_start: date
-    results: list[WhatsAppSendResult]
