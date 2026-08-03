@@ -57,8 +57,8 @@ button {
   border: 1px solid #cddfd1;
   border-radius: 24px;
   background:
-    radial-gradient(circle at 88% 12%, rgba(244, 184, 82, 0.2), transparent 28%),
-    linear-gradient(135deg, #173c2a 0%, #216142 74%, #f5fbf6 74.2%, #ffffff 100%);
+    radial-gradient(circle at 82% 12%, rgba(244, 184, 82, 0.18), transparent 28%),
+    linear-gradient(135deg, #143b28 0%, #1f6845 58%, #195235 100%);
   color: #ffffff;
   padding: 34px;
   box-shadow: 0 24px 70px rgba(30, 55, 38, 0.2);
@@ -94,10 +94,11 @@ button {
 .hero-logo {
   width: min(240px, 60vw);
   max-height: 190px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 18px;
+  box-shadow: 0 18px 36px rgba(14, 42, 28, 0.2);
 }
 
 .eyebrow {
@@ -431,8 +432,8 @@ h2 {
   border: 1px solid #cddfd1;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 82% 18%, rgba(244, 184, 82, 0.26), transparent 30%),
-    linear-gradient(135deg, #173c2a 0%, #216142 68%, #f5fbf6 68.2%, #ffffff 100%);
+    radial-gradient(circle at 86% 16%, rgba(244, 184, 82, 0.18), transparent 28%),
+    linear-gradient(135deg, #143b28 0%, #1f6845 58%, #195235 100%);
   color: #ffffff;
   padding: 26px;
   box-shadow: 0 22px 60px rgba(30, 55, 38, 0.18);
@@ -463,9 +464,10 @@ h2 {
   justify-self: end;
   width: 150px;
   height: 150px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 36px rgba(14, 42, 28, 0.2);
 }
 
 .dashboard-logo {
@@ -1697,8 +1699,8 @@ button.table-row {
 
   .login-hero-panel {
     background:
-      radial-gradient(circle at 82% 10%, rgba(244, 184, 82, 0.2), transparent 28%),
-      linear-gradient(180deg, #173c2a 0%, #216142 82%, #f5fbf6 82.2%, #ffffff 100%);
+      radial-gradient(circle at 82% 10%, rgba(244, 184, 82, 0.18), transparent 28%),
+      linear-gradient(180deg, #143b28 0%, #1f6845 64%, #195235 100%);
     padding: 24px;
   }
 
@@ -1713,7 +1715,7 @@ button.table-row {
   .dashboard-hero {
     min-height: auto;
     background:
-      linear-gradient(180deg, #173c2a 0%, #216142 76%, #f5fbf6 76.2%, #ffffff 100%);
+      linear-gradient(180deg, #143b28 0%, #1f6845 64%, #195235 100%);
   }
 
   .dashboard-hero h2 {
