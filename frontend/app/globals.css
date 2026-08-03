@@ -57,14 +57,15 @@ button {
   border: 1px solid #cddfd1;
   border-radius: 24px;
   background:
-    radial-gradient(circle at 88% 12%, rgba(244, 184, 82, 0.22), transparent 28%),
-    linear-gradient(135deg, #173c2a 0%, #216142 52%, #f5fbf6 52.2%, #ffffff 100%);
+    radial-gradient(circle at 88% 12%, rgba(244, 184, 82, 0.2), transparent 28%),
+    linear-gradient(135deg, #173c2a 0%, #216142 74%, #f5fbf6 74.2%, #ffffff 100%);
   color: #ffffff;
   padding: 34px;
   box-shadow: 0 24px 70px rgba(30, 55, 38, 0.2);
 }
 
 .login-hero-panel h1 {
+  max-width: 560px;
   color: #ffffff;
 }
 
@@ -73,6 +74,7 @@ button {
 }
 
 .login-hero-panel .lede {
+  max-width: 520px;
   color: rgba(255, 255, 255, 0.86);
   font-weight: 700;
 }
@@ -136,6 +138,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  max-width: 560px;
   margin-top: 24px;
 }
 
@@ -429,20 +432,20 @@ h2 {
   border-radius: 16px;
   background:
     radial-gradient(circle at 82% 18%, rgba(244, 184, 82, 0.26), transparent 30%),
-    linear-gradient(135deg, #173c2a 0%, #216142 46%, #f5fbf6 46.2%, #ffffff 100%);
+    linear-gradient(135deg, #173c2a 0%, #216142 68%, #f5fbf6 68.2%, #ffffff 100%);
   color: #ffffff;
   padding: 26px;
   box-shadow: 0 22px 60px rgba(30, 55, 38, 0.18);
 }
 
 .dashboard-hero h2 {
-  max-width: 620px;
+  max-width: 560px;
   color: #ffffff;
   font-size: 42px;
 }
 
 .dashboard-hero p:not(.eyebrow) {
-  max-width: 560px;
+  max-width: 520px;
   margin-top: 10px;
   color: rgba(255, 255, 255, 0.86);
   font-size: 16px;
@@ -1693,6 +1696,9 @@ button.table-row {
   }
 
   .login-hero-panel {
+    background:
+      radial-gradient(circle at 82% 10%, rgba(244, 184, 82, 0.2), transparent 28%),
+      linear-gradient(180deg, #173c2a 0%, #216142 82%, #f5fbf6 82.2%, #ffffff 100%);
     padding: 24px;
   }
 
@@ -1707,7 +1713,7 @@ button.table-row {
   .dashboard-hero {
     min-height: auto;
     background:
-      linear-gradient(180deg, #173c2a 0%, #216142 64%, #f5fbf6 64.2%, #ffffff 100%);
+      linear-gradient(180deg, #173c2a 0%, #216142 76%, #f5fbf6 76.2%, #ffffff 100%);
   }
 
   .dashboard-hero h2 {
