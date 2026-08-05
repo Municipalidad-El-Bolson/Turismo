@@ -109,10 +109,19 @@ export type EstablishmentPayload = {
   temporary_leave_end?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+function apiUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === "undefined") {
+    return configuredUrl ?? "http://localhost:8000";
+  }
+  if (configuredUrl && !configuredUrl.includes("localhost")) {
+    return configuredUrl;
+  }
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${apiUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
