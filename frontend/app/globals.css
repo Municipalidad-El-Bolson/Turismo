@@ -95,8 +95,12 @@ button {
 .hero-logo {
   width: min(250px, 62vw);
   max-height: 210px;
-  filter: brightness(0) invert(1) drop-shadow(0 12px 24px rgba(12, 32, 22, 0.26));
-  opacity: 0.94;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: invert(1) grayscale(1) contrast(1.15) brightness(1.45) drop-shadow(0 12px 24px rgba(12, 32, 22, 0.26));
+  mix-blend-mode: screen;
+  opacity: 0.96;
 }
 
 .eyebrow {
@@ -489,8 +493,12 @@ h2 {
 .dashboard-logo {
   width: 132px;
   max-height: 132px;
-  filter: brightness(0) invert(1) drop-shadow(0 10px 20px rgba(12, 32, 22, 0.24));
-  opacity: 0.9;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: invert(1) grayscale(1) contrast(1.15) brightness(1.45) drop-shadow(0 10px 20px rgba(12, 32, 22, 0.24));
+  mix-blend-mode: screen;
+  opacity: 0.96;
   object-fit: contain;
 }
 
