@@ -203,6 +203,7 @@ export default function Home() {
   const [loginId, setLoginId] = useState("");
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [selectedProfile, setSelectedProfile] = useState<EstablishmentSummary | null>(null);
   const [selectedProfileEntries, setSelectedProfileEntries] = useState<Entry[]>([]);
   const [weekStart, setWeekStart] = useState(currentWeek);
@@ -227,6 +228,7 @@ export default function Home() {
   async function login(userId: string) {
     const cleanUserId = userId.trim();
     if (!cleanUserId) {
+      setLoginError("Ingresa el ID numerico del establecimiento.");
       setMessage("Ingresa un ID de acceso.");
       return;
     }
@@ -234,6 +236,7 @@ export default function Home() {
     const demo = demoUsers.find((item) => item.id === cleanUserId);
     try {
       const response = await api.login(cleanUserId);
+      setLoginError("");
       setUser(response.user);
       setMessage("Conectado al backend.");
       if (response.user.role === "establishment") {
@@ -243,6 +246,7 @@ export default function Home() {
         await loadAdminData(response.user.id);
       }
     } catch {
+      setLoginError(demo ? "" : "No encontramos un establecimiento con ese ID.");
       setUser(demo ?? null);
       setMessage(demo ? "Backend no disponible: usando datos demo." : "No se encontro un usuario con ese ID.");
       if (demo?.role === "admin") {
@@ -256,12 +260,14 @@ export default function Home() {
 
   async function loginAdmin() {
     if (!adminUsername.trim() || !adminPassword.trim()) {
+      setLoginError("Completa usuario y contrasena para ingresar.");
       setMessage("Ingresa usuario y contrasena de admin.");
       return;
     }
 
     try {
       const response = await api.adminLogin(adminUsername.trim(), adminPassword.trim());
+      setLoginError("");
       setUser(response.user);
       setMessage("Conectado al backend.");
       await loadAdminData(response.user.id);
@@ -273,9 +279,11 @@ export default function Home() {
         setStats(demoStats);
         setStatsAvailability(demoStatsAvailability);
         setEstablishments(demoEstablishments);
+        setLoginError("");
         setMessage("Backend no disponible: usando admin demo.");
         return;
       }
+      setLoginError("Usuario o contrasena incorrectos.");
       setMessage("Usuario o contrasena de admin incorrectos.");
     }
   }
@@ -475,6 +483,12 @@ export default function Home() {
             </div>
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
+            {loginError ? (
+              <div className="login-error" role="alert">
+                <AlertTriangle size={18} />
+                <span>{loginError}</span>
+              </div>
+            ) : null}
             <form className="login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
               <div className="panel-title card-title">
                 <div>
@@ -485,14 +499,14 @@ export default function Home() {
               </div>
               <label>
                 Usuario
-                <input value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} />
+                <input value={adminUsername} onChange={(event) => { setAdminUsername(event.target.value); setLoginError(""); }} />
               </label>
               <label>
                 Contrasena
                 <input
                   type="password"
                   value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
+                  onChange={(event) => { setAdminPassword(event.target.value); setLoginError(""); }}
                 />
               </label>
               <button className="primary-button" type="submit">
@@ -516,7 +530,7 @@ export default function Home() {
                   pattern="[0-9]*"
                   placeholder="10000001"
                   value={loginId}
-                  onChange={(event) => setLoginId(event.target.value.replace(/\D/g, ""))}
+                  onChange={(event) => { setLoginId(event.target.value.replace(/\D/g, "")); setLoginError(""); }}
                 />
               </label>
               <button className="secondary-button" type="submit">

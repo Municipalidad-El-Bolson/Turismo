@@ -161,6 +161,24 @@ h2 {
   gap: 16px;
 }
 
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #efd7a4;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff7df, #ffffff);
+  color: #9a5a00;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 14px 34px rgba(82, 55, 17, 0.1);
+}
+
+.login-error svg {
+  flex: 0 0 auto;
+}
+
 .login-card {
   position: relative;
   overflow: hidden;
