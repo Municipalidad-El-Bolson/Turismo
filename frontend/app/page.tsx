@@ -469,7 +469,7 @@ export default function Home() {
         <section className="login">
           <div className="login-hero-panel">
             <div className="brand-lockup">
-              <LogoMark className="brand-logo hero-logo" src="/el-bolson-logo-dark.png" />
+              <LogoMark className="brand-logo hero-logo" src="/el-bolson-logo-transparent.png" />
               <p className="eyebrow">Turismo MEB</p>
             </div>
             <h1>Control de carga y ocupacion semanal</h1>
@@ -1240,7 +1240,7 @@ function AdminPanel(props: {
             <p>Vista general para seguir participacion, respuestas y ocupacion por tipo de alojamiento.</p>
           </div>
           <div className="dashboard-hero-mark">
-            <LogoMark className="dashboard-logo" src="/el-bolson-turismo-2021.avif" />
+            <LogoMark className="dashboard-logo" src="/el-bolson-logo-transparent.png" />
           </div>
         </div>
         <div className="dashboard-metrics">
