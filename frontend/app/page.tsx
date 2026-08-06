@@ -1832,6 +1832,54 @@ function DownloadChartButton(props: { onDownload: () => void }) {
 function StatsCharts(props: { rows: TypeStatsRow[] }) {
   const rows = props.rows.length ? props.rows : demoStats.type_rows;
   const [activePieIndex, setActivePieIndex] = useState(0);
+  const pieRows = useMemo(() => {
+    const sortedRows = [...rows].sort((a, b) => b.response_count - a.response_count);
+    if (sortedRows.length <= 8) return sortedRows;
+    const visibleRows = sortedRows.slice(0, 7);
+    const otherRows = sortedRows.slice(7);
+    const other = otherRows.reduce<TypeStatsRow>((acc, row) => ({
+      accommodation_type: "Otros alojamientos",
+      establishments: acc.establishments + row.establishments,
+      participant_establishments: acc.participant_establishments + row.participant_establishments,
+      participation_percent: 0,
+      expected_responses: acc.expected_responses + row.expected_responses,
+      response_count: acc.response_count + row.response_count,
+      missing_responses: acc.missing_responses + row.missing_responses,
+      response_rate_percent: 0,
+      occupied_places: acc.occupied_places + row.occupied_places,
+      available_places: acc.available_places + row.available_places,
+      respondent_available_places: acc.respondent_available_places + row.respondent_available_places,
+      occupancy_rate_percent: 0,
+      occupied_units: acc.occupied_units + row.occupied_units,
+      available_units: acc.available_units + row.available_units,
+      respondent_available_units: acc.respondent_available_units + row.respondent_available_units,
+      unit_occupancy_percent: 0,
+    }), {
+      accommodation_type: "Otros alojamientos",
+      establishments: 0,
+      participant_establishments: 0,
+      participation_percent: 0,
+      expected_responses: 0,
+      response_count: 0,
+      missing_responses: 0,
+      response_rate_percent: 0,
+      occupied_places: 0,
+      available_places: 0,
+      respondent_available_places: 0,
+      occupancy_rate_percent: 0,
+      occupied_units: 0,
+      available_units: 0,
+      respondent_available_units: 0,
+      unit_occupancy_percent: 0,
+    });
+    return [...visibleRows, {
+      ...other,
+      participation_percent: percentFrom(other.participant_establishments, other.establishments),
+      response_rate_percent: percentFrom(other.response_count, other.expected_responses),
+      occupancy_rate_percent: percentFrom(other.occupied_places, other.respondent_available_places),
+      unit_occupancy_percent: percentFrom(other.occupied_units, other.respondent_available_units),
+    }];
+  }, [rows]);
   const totalResponses = rows.reduce((sum, row) => sum + row.response_count, 0);
   const totalExpectedResponses = rows.reduce((sum, row) => sum + row.expected_responses, 0);
   const totalEstablishments = rows.reduce((sum, row) => sum + row.establishments, 0);
@@ -1855,7 +1903,7 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
       detail: `${totalOccupiedUnits}/${totalRespondentUnits}`,
     },
   ];
-  const activePieRow = rows[activePieIndex] ?? rows[0];
+  const activePieRow = pieRows[activePieIndex] ?? pieRows[0];
   const activePiePercent = activePieRow ? percentFrom(activePieRow.response_count, totalResponses) : 0;
   const pieRadius = 78;
   const pieCircumference = 2 * Math.PI * pieRadius;
@@ -1875,11 +1923,15 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
             <DownloadChartButton onDownload={() => downloadPieChart(rows, totalResponses)} />
           </div>
         </div>
+        <div className="participation-summary">
+          <strong>{pieRows.length}</strong>
+          <span>{rows.length > pieRows.length ? `categorias visibles de ${rows.length} totales` : "categorias de alojamiento"}</span>
+        </div>
         <div className="pie-wrap">
           <div className="pie-chart-shell" aria-label="Participacion por tipo de alojamiento">
             <svg className="pie-chart-svg" viewBox="0 0 200 200" role="img">
               <circle className="pie-empty-ring" cx="100" cy="100" r={pieRadius} />
-              {totalResponses ? rows.map((row, index) => {
+              {totalResponses ? pieRows.map((row, index) => {
                 const segmentLength = (row.response_count / totalResponses) * pieCircumference;
                 const segmentOffset = pieOffset;
                 pieOffset += segmentLength;
@@ -1906,7 +1958,7 @@ function StatsCharts(props: { rows: TypeStatsRow[] }) {
             </div>
           </div>
           <div className="chart-legend">
-            {rows.map((row, index) => (
+            {pieRows.map((row, index) => (
               <button
                 className={index === activePieIndex ? "legend-button active" : "legend-button"}
                 key={row.accommodation_type}
@@ -1984,7 +2036,11 @@ function BarChart(props: {
   value: (row: TypeStatsRow) => number;
   valueLabel: (value: number) => string;
 }) {
-  const values = props.rows.map(props.value);
+  const sortedRows = useMemo(
+    () => [...props.rows].sort((a, b) => props.value(b) - props.value(a)),
+    [props],
+  );
+  const values = sortedRows.map(props.value);
   const max = Math.max(...values, 1);
 
   return (
@@ -1992,12 +2048,12 @@ function BarChart(props: {
       <div className="chart-heading">
         <h3>{props.title}</h3>
         <div className="chart-heading-actions">
-          <span>{props.subtitle}</span>
+          <span>{props.subtitle} · {sortedRows.length} categorias</span>
           <DownloadChartButton onDownload={() => downloadBarChart(props.title, props.subtitle, props.rows, props.value, props.valueLabel)} />
         </div>
       </div>
       <div className="bar-chart">
-        {props.rows.map((row, index) => {
+        {sortedRows.map((row, index) => {
           const value = props.value(row);
           return (
             <div className="bar-row" key={row.accommodation_type}>
