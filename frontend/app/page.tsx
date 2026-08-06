@@ -469,7 +469,7 @@ export default function Home() {
         <section className="login">
           <div className="login-hero-panel">
             <div className="brand-lockup">
-              <LogoMark className="brand-logo hero-logo" src="/el-bolson-turismo-2021.avif" />
+              <LogoMark className="brand-logo hero-logo" src="/el-bolson-logo-dark.png" />
               <p className="eyebrow">Turismo MEB</p>
             </div>
             <h1>Control de carga y ocupacion semanal</h1>
