@@ -121,6 +121,13 @@ function hasMonthData(availability: StatsAvailability, year: number, month: numb
   return (availability.months_by_year[String(year)] ?? []).includes(month);
 }
 
+function latestAvailablePeriod(availability: StatsAvailability) {
+  const latestYear = [...availability.years].sort((a, b) => b - a)[0];
+  if (!latestYear) return null;
+  const latestMonth = [...(availability.months_by_year[String(latestYear)] ?? [])].sort((a, b) => b - a)[0];
+  return { year: latestYear, month: latestMonth ?? 1 };
+}
+
 function formatMissingFields(fields: string[]) {
   return fields.map((field) => missingFieldLabels[field] ?? field).join(", ");
 }
@@ -332,16 +339,31 @@ export default function Home() {
 
   async function loadAdminData(userId = user?.id ?? "meb-admin") {
     try {
-      const [complianceResponse, statsResponse, establishmentsResponse, statsAvailabilityResponse] = await Promise.all([
+      const statsAvailabilityResponse = await api.statsAvailability(userId);
+      const fallbackPeriod = latestAvailablePeriod(statsAvailabilityResponse);
+      const nextStatsYear =
+        (period === "yearly" || period === "monthly") && !hasYearData(statsAvailabilityResponse, statsYear)
+          ? fallbackPeriod?.year ?? statsYear
+          : statsYear;
+      const availableMonthsForYear = statsAvailabilityResponse.months_by_year[String(nextStatsYear)] ?? [];
+      const nextStatsMonth =
+        period === "monthly" && !hasMonthData(statsAvailabilityResponse, nextStatsYear, statsMonth)
+          ? fallbackPeriod?.year === nextStatsYear
+            ? fallbackPeriod.month
+            : [...availableMonthsForYear].sort((a, b) => b - a)[0] ?? statsMonth
+          : statsMonth;
+
+      const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
         api.compliance(userId, weekStart, compliancePeriod),
-        api.stats(userId, period, statsYear, statsMonth, statsWeekStart, statsRangeStart, statsRangeEnd),
+        api.stats(userId, period, nextStatsYear, nextStatsMonth, statsWeekStart, statsRangeStart, statsRangeEnd),
         api.establishments(userId),
-        api.statsAvailability(userId),
       ]);
       setCompliance(complianceResponse);
       setStats(statsResponse);
       setEstablishments(establishmentsResponse);
       setStatsAvailability(statsAvailabilityResponse);
+      if (nextStatsYear !== statsYear) setStatsYear(nextStatsYear);
+      if (nextStatsMonth !== statsMonth) setStatsMonth(nextStatsMonth);
       setMessage("Panel admin actualizado.");
     } catch {
       setCompliance(demoCompliance);
