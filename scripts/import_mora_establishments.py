@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import copy
-import hashlib
 import json
 import random
 import re
 import unicodedata
-from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
-from difflib import SequenceMatcher
 from typing import Any
 
 import openpyxl
@@ -49,47 +45,6 @@ def clean_string(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value).strip()
-
-
-def clean_name(value: Any) -> str:
-    text = normalize_text(value)
-    for prefix in [
-        "hotel ",
-        "hosteria ",
-        "hosterias ",
-        "cabanas ",
-        "cabana ",
-        "apart ",
-        "departamentos ",
-        "departamento ",
-        "camping ",
-        "hostel ",
-        "albergue ",
-        "alojamiento ",
-    ]:
-        if text.startswith(prefix):
-            text = text.removeprefix(prefix)
-    return text.strip()
-
-
-def similarity(left: str, right: str) -> float:
-    score = SequenceMatcher(None, left, right).ratio()
-    if len(left) >= 5 and len(right) >= 5 and (left in right or right in left):
-        score = max(score, 0.92)
-    return score
-
-
-def canonical_accommodation_type(value: Any) -> str:
-    normalized = normalize_text(value)
-    if normalized in {"campings dormis", "campings", "camping"}:
-        return "campings"
-    if normalized in {"apart cabanas", "apart cabanas"}:
-        return "apart cabanas"
-    return normalized
-
-
-def accommodation_type_matches(left: Any, right: Any) -> bool:
-    return canonical_accommodation_type(left) == canonical_accommodation_type(right)
 
 
 def parse_int(value: Any) -> int | None:
@@ -140,11 +95,6 @@ def normalize_phone_number(value: Any) -> tuple[str, list[str]]:
 
     normalized = list(dict.fromkeys(normalized))
     return (normalized[0] if normalized else ""), normalized
-
-
-def phone_key(value: Any) -> str:
-    digits = re.sub(r"\D+", "", "" if value is None else str(value))
-    return digits[-8:] if len(digits) >= 8 else digits
 
 
 def date_only(value: Any) -> str | None:
@@ -392,136 +342,7 @@ def build_user_documents(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return users
 
 
-def remap_historic_entries(users: list[dict[str, Any]], old_export_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if not old_export_path.exists():
-        return [], {"historic_export_found": False}
-
-    old_data = json.loads(old_export_path.read_text(encoding="utf-8-sig"))
-    old_users = [user for user in old_data["collections"]["users"] if user.get("role") == "establishment"]
-    old_entries = [
-        entry for entry in old_data["collections"].get("occupancy_entries", [])
-        if "Importado desde" in (entry.get("notes") or "")
-        and (
-            "OCUPACION" in (entry.get("notes") or "").upper()
-            or "OCUPACIÓN" in (entry.get("notes") or "").upper()
-        )
-    ]
-    skipped_non_official_entries = len(old_data["collections"].get("occupancy_entries", [])) - len(old_entries)
-    new_users = [user for user in users if user.get("role") == "establishment"]
-
-    new_by_phone: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    new_names = []
-    for user in new_users:
-        for field in ["phone", "whatsapp", "raw_phone"]:
-            key = phone_key(user.get(field))
-            if key:
-                new_by_phone[key].append(user)
-        new_names.append((clean_name(user.get("accommodation_name") or user.get("establishment_name")), user))
-
-    matches: dict[str, dict[str, Any]] = {}
-    match_reasons: Counter[str] = Counter()
-    unmatched_establishments: list[dict[str, Any]] = []
-    for old_user in old_users:
-        old_name = clean_name(old_user.get("accommodation_name") or old_user.get("establishment_name"))
-        old_type = old_user.get("accommodation_type")
-        candidates: list[dict[str, Any]] = []
-        for field in ["phone", "whatsapp", "raw_phone"]:
-            key = phone_key(old_user.get(field))
-            if key:
-                candidates.extend(new_by_phone.get(key, []))
-        unique_candidates = {candidate["_id"]: candidate for candidate in candidates}
-        candidates = list(unique_candidates.values())
-
-        if len(candidates) > 1 and old_type:
-            typed = [
-                candidate for candidate in candidates
-                if accommodation_type_matches(candidate.get("accommodation_type"), old_type)
-                or any(accommodation_type_matches(candidate_type, old_type) for candidate_type in candidate.get("accommodation_types", []))
-            ]
-            if typed:
-                candidates = typed
-
-        if candidates:
-            scored = sorted(
-                [
-                    (
-                        similarity(old_name, clean_name(candidate.get("accommodation_name") or candidate.get("establishment_name"))),
-                        candidate,
-                    )
-                    for candidate in candidates
-                ],
-                key=lambda item: item[0],
-                reverse=True,
-            )
-            if len(scored) == 1 or scored[0][0] - scored[1][0] > 0.05:
-                matches[old_user["_id"]] = scored[0][1]
-                match_reasons["phone_or_type"] += 1
-                continue
-
-        scoped_names = [
-            (name, user) for name, user in new_names
-            if not old_type
-            or accommodation_type_matches(user.get("accommodation_type"), old_type)
-            or any(accommodation_type_matches(candidate_type, old_type) for candidate_type in user.get("accommodation_types", []))
-        ] or new_names
-        scored = sorted(
-            [(similarity(old_name, name), user) for name, user in scoped_names],
-            key=lambda item: item[0],
-            reverse=True,
-        )
-        if scored and scored[0][0] >= 0.82 and (len(scored) == 1 or scored[0][0] - scored[1][0] > 0.03):
-            matches[old_user["_id"]] = scored[0][1]
-            match_reasons["name"] += 1
-            continue
-        unmatched_establishments.append(
-            {
-                "id": old_user["_id"],
-                "name": old_user.get("accommodation_name") or old_user.get("establishment_name"),
-                "entries": 0,
-            }
-        )
-
-    entry_counts = Counter(entry.get("establishment_id") for entry in old_entries)
-    for unmatched in unmatched_establishments:
-        unmatched["entries"] = entry_counts.get(unmatched["id"], 0)
-
-    aggregated: dict[tuple[str, str], dict[str, Any]] = {}
-    unmatched_entries = 0
-    for entry in old_entries:
-        target = matches.get(entry.get("establishment_id"))
-        if not target:
-            unmatched_entries += 1
-            continue
-        week_start = entry["week_start"]["$date"] if isinstance(entry.get("week_start"), dict) else str(entry.get("week_start"))
-        key = (target["_id"], week_start[:10])
-        if key not in aggregated:
-            next_entry = copy.deepcopy(entry)
-            next_entry["_id"] = {"$oid": hashlib.md5(f"{key[0]}-{key[1]}".encode()).hexdigest()[:24]}
-            next_entry["establishment_id"] = target["_id"]
-            next_entry["establishment_name"] = target.get("establishment_name") or target.get("display_name")
-            next_entry["notes"] = f"{entry.get('notes') or ''} Importado desde base historica y remapeado al padron Mora.".strip()
-            aggregated[key] = next_entry
-            continue
-        aggregated[key]["occupied_places"] = (aggregated[key].get("occupied_places") or 0) + (entry.get("occupied_places") or 0)
-        aggregated[key]["occupied_units"] = (aggregated[key].get("occupied_units") or 0) + (entry.get("occupied_units") or 0)
-
-    entries = sorted(aggregated.values(), key=lambda entry: (entry["week_start"]["$date"], entry["establishment_name"]))
-    return entries, {
-        "historic_export_found": True,
-        "old_establishments": len(old_users),
-        "matched_establishments": len(matches),
-        "unmatched_establishments": [
-            item for item in unmatched_establishments if item["entries"] > 0
-        ],
-        "old_entries": len(old_entries),
-        "skipped_non_official_entries": skipped_non_official_entries,
-        "remapped_entries": len(entries),
-        "unmatched_entries": unmatched_entries,
-        "match_reasons": dict(match_reasons),
-    }
-
-
-def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], occupancy_entries: list[dict[str, Any]], unmatched: list[dict[str, Any]], occupancy_report: dict[str, Any]) -> None:
+def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], unmatched: list[dict[str, Any]]) -> None:
     seed_records = []
     for record in records:
         seed_record = {key: value for key, value in record.items() if key != "id"}
@@ -531,18 +352,6 @@ def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], oc
         json.dumps(seed_records, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    occupancy_seed_records = []
-    for entry in occupancy_entries:
-        seed_entry = {key: value for key, value in entry.items() if key != "_id"}
-        for field in ["week_start", "created_at", "updated_at"]:
-            value = seed_entry.get(field)
-            if isinstance(value, dict) and "$date" in value:
-                seed_entry[field] = value["$date"]
-        occupancy_seed_records.append(seed_entry)
-    Path("backend/app/occupancy_seed.json").write_text(
-        json.dumps(occupancy_seed_records, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
     Path("exports").mkdir(exist_ok=True)
     Path("exports/turismo-mora-ultima-etapa-db.json").write_text(
         json.dumps(
@@ -550,7 +359,7 @@ def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], oc
                 "source": "LISTADO COMPLETO TURISMO MORA - ULTIMA ETAPA.xlsx",
                 "collections": {
                     "users": users,
-                    "occupancy_entries": occupancy_entries,
+                    "occupancy_entries": [],
                 },
             },
             ensure_ascii=False,
@@ -564,7 +373,6 @@ def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], oc
                 "establishments": len(records),
                 "temporary_leaves_applied": sum(1 for record in records if record.get("temporary_leave_start")),
                 "temporary_leaves_unmatched": unmatched,
-                "occupancy": occupancy_report,
                 "by_category": {
                     CATEGORY_LABELS[number]: sum(1 for record in records if record["category_number"] == number)
                     for number in sorted(CATEGORY_LABELS)
@@ -581,7 +389,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("workbook", nargs="?", default=r"C:\Users\PC 1\Downloads\LISTADO COMPLETO TURISMO MORA - ÚLTIMA ETAPA.xlsx")
     parser.add_argument("--seed", type=int, default=20260807)
-    parser.add_argument("--historic-export", default="exports/turismo-db-export-2026-06-08.json")
     args = parser.parse_args()
 
     workbook_path = Path(args.workbook)
@@ -598,15 +405,13 @@ def main() -> int:
     records.extend(record_from_unmatched_leave(leave) for leave in unmatched)
     records = assign_ids(records, args.seed)
     users = build_user_documents(records)
-    occupancy_entries, occupancy_report = remap_historic_entries(users, Path(args.historic_export))
-    write_outputs(records, users, occupancy_entries, [], occupancy_report)
+    write_outputs(records, users, [])
 
     print(f"Establecimientos generados: {len(records)}")
     print(f"Usuarios Mongo a insertar: {len(users)}")
     print(f"Bajas temporales leidas con fecha: {len(leaves)}")
     print(f"Bajas temporales aplicadas: {sum(1 for record in records if record.get('temporary_leave_start'))}")
     print(f"Bajas temporales agregadas desde hoja de bajas: {len(unmatched)}")
-    print(f"Cargas historicas remapeadas: {len(occupancy_entries)}")
     for number in sorted(CATEGORY_LABELS):
         print(f"- {CATEGORY_LABELS[number]}: {sum(1 for record in records if record['category_number'] == number)}")
     return 0

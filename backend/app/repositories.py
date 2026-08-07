@@ -11,7 +11,6 @@ from .database import get_database
 from .schemas import EstablishmentCreate, EstablishmentUpdate, OccupancyEntryCreate, UserRole
 
 SEED_FILE = Path(__file__).with_name("establishments_seed.json")
-OCCUPANCY_SEED_FILE = Path(__file__).with_name("occupancy_seed.json")
 
 
 def infer_accommodation_type(name: str | None) -> str:
@@ -50,17 +49,6 @@ def date_to_datetime(value: date | None) -> datetime | None:
     return datetime.combine(value, datetime.min.time(), tzinfo=UTC)
 
 
-def iso_to_datetime(value) -> datetime:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, dict) and "$date" in value:
-        value = value["$date"]
-    if isinstance(value, str):
-        normalized = value.replace("Z", "+00:00")
-        return datetime.fromisoformat(normalized)
-    return datetime.now(UTC)
-
-
 def leave_dates(establishment: dict) -> tuple[date | None, date | None]:
     start = serialize_optional_date(establishment.get("temporary_leave_start"))
     end = serialize_optional_date(establishment.get("temporary_leave_end"))
@@ -76,7 +64,29 @@ def leave_overlaps(establishment: dict, start: date, end: date) -> bool:
     return leave_start < end and leave_end >= start
 
 
+def is_camping(establishment: dict) -> bool:
+    category_numbers = establishment.get("category_numbers") or []
+    accommodation_type = (establishment.get("accommodation_type") or "").lower()
+    return 6 in category_numbers or establishment.get("category_number") == 6 or "camping" in accommodation_type
+
+
+def camping_is_active_on(day: date) -> bool:
+    return day.month in {12, 1, 2, 3}
+
+
+def camping_active_weeks_between(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    return len({
+        (start + timedelta(days=offset)).isocalendar().week
+        for offset in range((end - start).days)
+        if camping_is_active_on(start + timedelta(days=offset))
+    })
+
+
 def entry_is_on_leave(establishment: dict, entry_date: date) -> bool:
+    if is_camping(establishment) and not camping_is_active_on(entry_date):
+        return True
     leave_start, leave_end = leave_dates(establishment)
     return bool(leave_start and leave_end and leave_start <= entry_date <= leave_end)
 
@@ -88,6 +98,11 @@ def week_count_between(start: date, end: date) -> int:
 
 
 def active_weeks_for_establishment(establishment: dict, period: str, start: date, end: date, total_weeks: int) -> int:
+    if is_camping(establishment):
+        total_weeks = min(total_weeks, camping_active_weeks_between(start, end))
+        if total_weeks <= 0:
+            return 0
+
     leave_start, leave_end = leave_dates(establishment)
     if not leave_start or not leave_end:
         return total_weeks
@@ -174,7 +189,6 @@ async def seed_demo_data() -> None:
     )
     await clean_legacy_establishments()
     await seed_establishments_from_file()
-    await seed_occupancy_from_file()
     await backfill_accommodation_types()
 
 
@@ -198,6 +212,7 @@ async def seed_establishments_from_file() -> None:
 
     db = get_database()
     records = json.loads(SEED_FILE.read_text(encoding="utf-8"))
+    await db.occupancy_entries.delete_many({})
     seed_ids = [record["id"] for record in records]
     if seed_ids:
         await db.users.delete_many(
@@ -241,22 +256,6 @@ async def seed_establishments_from_file() -> None:
             {"$set": document},
             upsert=True,
         )
-
-
-async def seed_occupancy_from_file() -> None:
-    if not OCCUPANCY_SEED_FILE.exists():
-        return
-
-    db = get_database()
-    records = json.loads(OCCUPANCY_SEED_FILE.read_text(encoding="utf-8"))
-    await db.occupancy_entries.delete_many({})
-    for record in records:
-        record.pop("_id", None)
-        record["week_start"] = iso_to_datetime(record["week_start"])
-        record["created_at"] = iso_to_datetime(record.get("created_at"))
-        record["updated_at"] = iso_to_datetime(record.get("updated_at"))
-    if records:
-        await db.occupancy_entries.insert_many(records)
 
 
 async def backfill_accommodation_types() -> None:
