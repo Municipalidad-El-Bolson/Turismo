@@ -19,6 +19,14 @@ class User(BaseModel):
     accommodation_name: str | None = None
     address: str | None = None
     phone: str | None = None
+    social_reason: str | None = None
+    email: str | None = None
+    category_number: int | None = None
+    category_numbers: list[int] = Field(default_factory=list)
+    accommodation_types: list[str] = Field(default_factory=list)
+    habilitation_number: str | None = None
+    nomenclature: str | None = None
+    neighborhood: str | None = None
     units: int | None = None
     places: int | None = None
     accommodation_type: str | None = None
@@ -83,6 +91,14 @@ class EstablishmentSummary(BaseModel):
     accommodation_name: str | None = None
     address: str | None = None
     phone: str | None = None
+    social_reason: str | None = None
+    email: str | None = None
+    category_number: int | None = None
+    category_numbers: list[int] = Field(default_factory=list)
+    accommodation_types: list[str] = Field(default_factory=list)
+    habilitation_number: str | None = None
+    nomenclature: str | None = None
+    neighborhood: str | None = None
     units: int | None = None
     places: int | None = None
     accommodation_type: str | None = None

@@ -894,6 +894,11 @@ function AdminPanel(props: {
         item.address,
         item.phone,
         item.whatsapp,
+        item.social_reason,
+        item.email,
+        item.habilitation_number,
+        item.nomenclature,
+        item.neighborhood,
         item.accommodation_type,
         item.temporary_leave_start,
         item.temporary_leave_end,
@@ -1119,9 +1124,15 @@ function AdminPanel(props: {
           ) : (
             <div className="profile-grid">
               <ProfileField label="Nro. de parcela" value={props.selectedProfile.parcel_number} />
+              <ProfileField label="Razon social" value={props.selectedProfile.social_reason} />
               <ProfileField label="Direccion" value={props.selectedProfile.address} />
+              <ProfileField label="Barrio" value={props.selectedProfile.neighborhood} />
               <ProfileField label="Telefono" value={props.selectedProfile.phone ?? props.selectedProfile.whatsapp} />
+              <ProfileField label="Correo" value={props.selectedProfile.email} />
               <ProfileField label="Tipo de alojamiento" value={props.selectedProfile.accommodation_type} />
+              <ProfileField label="Nro. de categoria" value={props.selectedProfile.category_numbers?.join(", ") ?? props.selectedProfile.category_number?.toString()} />
+              <ProfileField label="Nro. de habilitacion" value={props.selectedProfile.habilitation_number} />
+              <ProfileField label="Nomenclatura" value={props.selectedProfile.nomenclature} />
               <ProfileField label="Unidades habilitadas" value={formatOptionalNumber(props.selectedProfile.units)} />
               <ProfileField label="Plazas habilitadas" value={formatOptionalNumber(props.selectedProfile.places)} />
               <ProfileField label="Baja temporal" value={formatTemporaryLeave(props.selectedProfile)} />

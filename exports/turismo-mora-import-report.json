@@ -1,0 +1,13 @@
+{
+  "establishments": 383,
+  "temporary_leaves_applied": 54,
+  "temporary_leaves_unmatched": [],
+  "by_category": {
+    "Hoteles / hosterias": 11,
+    "Apart / cabanas": 114,
+    "B&B / hospedajes": 8,
+    "CAT/DAT": 173,
+    "Hostels": 29,
+    "Campings": 48
+  }
+}

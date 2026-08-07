@@ -35,6 +35,11 @@ def serialize_optional_date(value) -> date | None:
         return value.date()
     if isinstance(value, date):
         return value
+    if isinstance(value, str) and value:
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
     return None
 
 
@@ -102,6 +107,14 @@ def serialize_user(document: dict) -> dict:
         "accommodation_name": document.get("accommodation_name") or establishment_name,
         "address": document.get("address"),
         "phone": document.get("phone"),
+        "social_reason": document.get("social_reason"),
+        "email": document.get("email"),
+        "category_number": document.get("category_number"),
+        "category_numbers": document.get("category_numbers") or [],
+        "accommodation_types": document.get("accommodation_types") or [],
+        "habilitation_number": document.get("habilitation_number"),
+        "nomenclature": document.get("nomenclature"),
+        "neighborhood": document.get("neighborhood"),
         "units": document.get("units"),
         "places": document.get("places"),
         "accommodation_type": document.get("accommodation_type") or infer_accommodation_type(establishment_name),
@@ -184,10 +197,23 @@ async def seed_establishments_from_file() -> None:
             "phone": record.get("phone", ""),
             "whatsapp": record.get("phone", ""),
             "raw_phone": record.get("raw_phone", ""),
+            "social_reason": record.get("social_reason", ""),
+            "email": record.get("email", ""),
+            "category_number": record.get("category_number"),
+            "category_numbers": record.get("category_numbers", []),
+            "accommodation_types": record.get("accommodation_types", []),
+            "habilitation_number": record.get("habilitation_number", ""),
+            "nomenclature": record.get("nomenclature", ""),
+            "neighborhood": record.get("neighborhood", ""),
             "units": record.get("units"),
             "places": record.get("places"),
             "accommodation_type": record.get("accommodation_type") or infer_accommodation_type(record["accommodation_name"]),
-            "seed_source": "turismo_el_bolson_2026",
+            "temporary_leave_start": date_to_datetime(serialize_optional_date(record.get("temporary_leave_start"))),
+            "temporary_leave_end": date_to_datetime(serialize_optional_date(record.get("temporary_leave_end"))),
+            "temporary_leave_source_row": record.get("temporary_leave_source_row"),
+            "source_sheet": record.get("source_sheet"),
+            "source_row": record.get("source_row"),
+            "seed_source": record.get("seed_source", "mora_ultima_etapa_2026"),
         }
         await db.users.update_one(
             {"_id": document["_id"]},
