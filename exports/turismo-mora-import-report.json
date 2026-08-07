@@ -43,9 +43,10 @@
         "entries": 13
       }
     ],
-    "old_entries": 1202,
-    "remapped_entries": 1135,
-    "unmatched_entries": 59,
+    "old_entries": 1198,
+    "skipped_non_official_entries": 4,
+    "remapped_entries": 1134,
+    "unmatched_entries": 56,
     "match_reasons": {
       "phone_or_type": 272,
       "name": 33

@@ -11338,15 +11338,5 @@
     "occupied_places": 4,
     "occupied_units": 2,
     "updated_at": "2026-06-02T14:10:01.777Z"
-  },
-  {
-    "week_start": "2026-05-01T00:00:00Z",
-    "establishment_id": "14489633",
-    "created_at": "2026-06-03T12:34:17.327Z",
-    "establishment_name": "Aires Patagónicos Hotel",
-    "notes": "Importado desde base historica y remapeado al padron Mora.",
-    "occupied_places": 17,
-    "occupied_units": 42,
-    "updated_at": "2026-06-03T12:34:17.327Z"
   }
 ]

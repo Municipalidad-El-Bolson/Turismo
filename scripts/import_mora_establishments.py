@@ -385,7 +385,15 @@ def remap_historic_entries(users: list[dict[str, Any]], old_export_path: Path) -
 
     old_data = json.loads(old_export_path.read_text(encoding="utf-8-sig"))
     old_users = [user for user in old_data["collections"]["users"] if user.get("role") == "establishment"]
-    old_entries = old_data["collections"].get("occupancy_entries", [])
+    old_entries = [
+        entry for entry in old_data["collections"].get("occupancy_entries", [])
+        if "Importado desde" in (entry.get("notes") or "")
+        and (
+            "OCUPACION" in (entry.get("notes") or "").upper()
+            or "OCUPACIÓN" in (entry.get("notes") or "").upper()
+        )
+    ]
+    skipped_non_official_entries = len(old_data["collections"].get("occupancy_entries", [])) - len(old_entries)
     new_users = [user for user in users if user.get("role") == "establishment"]
 
     new_by_phone: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -490,6 +498,7 @@ def remap_historic_entries(users: list[dict[str, Any]], old_export_path: Path) -
             item for item in unmatched_establishments if item["entries"] > 0
         ],
         "old_entries": len(old_entries),
+        "skipped_non_official_entries": skipped_non_official_entries,
         "remapped_entries": len(entries),
         "unmatched_entries": unmatched_entries,
         "match_reasons": dict(match_reasons),
