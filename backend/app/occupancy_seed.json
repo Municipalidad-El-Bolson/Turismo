@@ -130,6 +130,16 @@
     "updated_at": "2026-06-02T13:34:40.850Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-01-02T00:00:00Z",
+    "created_at": "2026-06-02T13:34:40.618Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.01 - OCUPACION DEL 02 AL 05 DE ENERO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 15,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:40.618Z"
+  },
+  {
     "establishment_id": "46466960",
     "week_start": "2026-01-02T00:00:00Z",
     "created_at": "2026-06-02T13:34:40.783Z",
@@ -788,6 +798,16 @@
     "occupied_places": 4,
     "occupied_units": 1,
     "updated_at": "2026-06-02T13:34:41.372Z"
+  },
+  {
+    "establishment_id": "99637054",
+    "week_start": "2026-01-06T00:00:00Z",
+    "created_at": "2026-06-02T13:34:41.166Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.01 - OCUPACION DEL 06 AL 11 DE ENERO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 15,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:41.166Z"
   },
   {
     "establishment_id": "41324766",
@@ -1568,6 +1588,16 @@
     "occupied_places": 33,
     "occupied_units": 13,
     "updated_at": "2026-06-02T13:34:42.300Z"
+  },
+  {
+    "establishment_id": "99637054",
+    "week_start": "2026-01-12T00:00:00Z",
+    "created_at": "2026-06-02T13:34:41.710Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.01 - OCUPACION DEL 12 AL 18 DE ENERO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 15,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:41.710Z"
   },
   {
     "establishment_id": "41324766",
@@ -2400,6 +2430,16 @@
     "updated_at": "2026-06-02T13:34:42.861Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-01-19T00:00:00Z",
+    "created_at": "2026-06-02T13:34:42.351Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.01 - OCUPACION DEL 19 AL 25 DE ENERO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 14,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:42.351Z"
+  },
+  {
     "establishment_id": "41324766",
     "week_start": "2026-01-19T00:00:00Z",
     "created_at": "2026-06-02T13:34:42.575Z",
@@ -3170,6 +3210,16 @@
     "updated_at": "2026-06-02T13:34:43.482Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-01-26T00:00:00Z",
+    "created_at": "2026-06-02T13:34:42.938Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.01 - OCUPACION DEL 26 AL 31 DE ENERO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 14,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:42.938Z"
+  },
+  {
     "establishment_id": "29755521",
     "week_start": "2026-01-26T00:00:00Z",
     "created_at": "2026-06-02T13:34:42.958Z",
@@ -3868,6 +3918,16 @@
     "occupied_places": 33,
     "occupied_units": 13,
     "updated_at": "2026-06-02T13:34:43.876Z"
+  },
+  {
+    "establishment_id": "99637054",
+    "week_start": "2026-02-02T00:00:00Z",
+    "created_at": "2026-06-02T13:34:43.528Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.02 - OCUPACION DEL 02 AL 07 DE febrero.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 15,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:43.528Z"
   },
   {
     "establishment_id": "29755521",
@@ -5090,6 +5150,16 @@
     "updated_at": "2026-06-02T13:34:45.001Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-02-19T00:00:00Z",
+    "created_at": "2026-06-02T13:34:44.420Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.02 - OCUPACION DEL 19 AL 22 FIESTA DEL LUPULO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 14,
+    "occupied_units": 4,
+    "updated_at": "2026-06-02T13:34:44.420Z"
+  },
+  {
     "establishment_id": "41324766",
     "week_start": "2026-02-19T00:00:00Z",
     "created_at": "2026-06-02T13:34:44.830Z",
@@ -5890,6 +5960,16 @@
     "updated_at": "2026-06-02T13:34:45.284Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-03-01T00:00:00Z",
+    "created_at": "2026-06-02T13:34:45.086Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.03 - OCUPACION FINDE XL 01 AL 04 MARZO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 7,
+    "occupied_units": 2,
+    "updated_at": "2026-06-02T13:34:45.086Z"
+  },
+  {
     "establishment_id": "29755521",
     "week_start": "2026-03-01T00:00:00Z",
     "created_at": "2026-06-02T13:34:45.106Z",
@@ -6510,6 +6590,16 @@
     "updated_at": "2026-06-02T13:34:45.797Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-03-12T00:00:00Z",
+    "created_at": "2026-06-02T13:34:45.552Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.03 - OCUPACION DEL 12 AL 15 DE MARZO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 4,
+    "occupied_units": 2,
+    "updated_at": "2026-06-02T13:34:45.552Z"
+  },
+  {
     "establishment_id": "41324766",
     "week_start": "2026-03-12T00:00:00Z",
     "created_at": "2026-06-02T13:34:45.611Z",
@@ -6878,6 +6968,16 @@
     "occupied_places": 33,
     "occupied_units": 13,
     "updated_at": "2026-06-02T13:34:46.163Z"
+  },
+  {
+    "establishment_id": "99637054",
+    "week_start": "2026-03-21T00:00:00Z",
+    "created_at": "2026-06-02T13:34:45.843Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 2026.03 - OCUPACION DEL 21 AL 23 DE MARZO.xlsx (CABAÑAS). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 5,
+    "occupied_units": 2,
+    "updated_at": "2026-06-02T13:34:45.843Z"
   },
   {
     "establishment_id": "46466960",
@@ -7350,6 +7450,16 @@
     "updated_at": "2026-06-02T14:09:58.721Z"
   },
   {
+    "establishment_id": "99637054",
+    "week_start": "2026-04-02T00:00:00Z",
+    "created_at": "2026-06-02T14:09:58.687Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 04.2026 Ocupación.xlsx (DATOS DIARIOS dia 02). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 25,
+    "occupied_units": 5,
+    "updated_at": "2026-06-02T14:09:58.687Z"
+  },
+  {
     "week_start": "2026-04-02T00:00:00Z",
     "establishment_id": "29755521",
     "created_at": "2026-06-02T14:09:58.598Z",
@@ -7800,6 +7910,16 @@
     "updated_at": "2026-06-02T14:09:58.727Z"
   },
   {
+    "week_start": "2026-04-03T00:00:00Z",
+    "establishment_id": "99637054",
+    "created_at": "2026-06-02T14:09:58.694Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 04.2026 Ocupación.xlsx (DATOS DIARIOS dia 03). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 25,
+    "occupied_units": 5,
+    "updated_at": "2026-06-02T14:09:58.694Z"
+  },
+  {
     "establishment_id": "29755521",
     "week_start": "2026-04-03T00:00:00Z",
     "created_at": "2026-06-02T14:09:58.605Z",
@@ -8248,6 +8368,16 @@
     "occupied_places": 4,
     "occupied_units": 5,
     "updated_at": "2026-06-02T14:09:58.734Z"
+  },
+  {
+    "establishment_id": "99637054",
+    "week_start": "2026-04-04T00:00:00Z",
+    "created_at": "2026-06-02T14:09:58.700Z",
+    "establishment_name": "CAMPING Portal Norte",
+    "notes": "Importado desde 04.2026 Ocupación.xlsx (DATOS DIARIOS dia 04). Importado desde base historica y remapeado al padron Mora.",
+    "occupied_places": 25,
+    "occupied_units": 5,
+    "updated_at": "2026-06-02T14:09:58.700Z"
   },
   {
     "establishment_id": "29755521",

@@ -79,6 +79,19 @@ def similarity(left: str, right: str) -> float:
     return score
 
 
+def canonical_accommodation_type(value: Any) -> str:
+    normalized = normalize_text(value)
+    if normalized in {"campings dormis", "campings", "camping"}:
+        return "campings"
+    if normalized in {"apart cabanas", "apart cabanas"}:
+        return "apart cabanas"
+    return normalized
+
+
+def accommodation_type_matches(left: Any, right: Any) -> bool:
+    return canonical_accommodation_type(left) == canonical_accommodation_type(right)
+
+
 def parse_int(value: Any) -> int | None:
     if value is None:
         return None
@@ -422,7 +435,8 @@ def remap_historic_entries(users: list[dict[str, Any]], old_export_path: Path) -
         if len(candidates) > 1 and old_type:
             typed = [
                 candidate for candidate in candidates
-                if candidate.get("accommodation_type") == old_type or old_type in candidate.get("accommodation_types", [])
+                if accommodation_type_matches(candidate.get("accommodation_type"), old_type)
+                or any(accommodation_type_matches(candidate_type, old_type) for candidate_type in candidate.get("accommodation_types", []))
             ]
             if typed:
                 candidates = typed
@@ -446,7 +460,9 @@ def remap_historic_entries(users: list[dict[str, Any]], old_export_path: Path) -
 
         scoped_names = [
             (name, user) for name, user in new_names
-            if not old_type or user.get("accommodation_type") == old_type or old_type in user.get("accommodation_types", [])
+            if not old_type
+            or accommodation_type_matches(user.get("accommodation_type"), old_type)
+            or any(accommodation_type_matches(candidate_type, old_type) for candidate_type in user.get("accommodation_types", []))
         ] or new_names
         scored = sorted(
             [(similarity(old_name, name), user) for name, user in scoped_names],

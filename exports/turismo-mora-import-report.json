@@ -5,7 +5,7 @@
   "occupancy": {
     "historic_export_found": true,
     "old_establishments": 343,
-    "matched_establishments": 305,
+    "matched_establishments": 309,
     "unmatched_establishments": [
       {
         "id": "46995198",
@@ -36,20 +36,15 @@
         "id": "24325794",
         "name": "No Me Olvides",
         "entries": 10
-      },
-      {
-        "id": "96125752",
-        "name": "Portal Norte",
-        "entries": 13
       }
     ],
     "old_entries": 1198,
     "skipped_non_official_entries": 4,
-    "remapped_entries": 1134,
-    "unmatched_entries": 56,
+    "remapped_entries": 1147,
+    "unmatched_entries": 43,
     "match_reasons": {
       "phone_or_type": 272,
-      "name": 33
+      "name": 37
     }
   },
   "by_category": {
