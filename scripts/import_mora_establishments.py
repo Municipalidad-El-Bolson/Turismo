@@ -506,6 +506,18 @@ def write_outputs(records: list[dict[str, Any]], users: list[dict[str, Any]], oc
         json.dumps(seed_records, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    occupancy_seed_records = []
+    for entry in occupancy_entries:
+        seed_entry = {key: value for key, value in entry.items() if key != "_id"}
+        for field in ["week_start", "created_at", "updated_at"]:
+            value = seed_entry.get(field)
+            if isinstance(value, dict) and "$date" in value:
+                seed_entry[field] = value["$date"]
+        occupancy_seed_records.append(seed_entry)
+    Path("backend/app/occupancy_seed.json").write_text(
+        json.dumps(occupancy_seed_records, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     Path("exports").mkdir(exist_ok=True)
     Path("exports/turismo-mora-ultima-etapa-db.json").write_text(
         json.dumps(

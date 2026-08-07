@@ -11,6 +11,7 @@ from .database import get_database
 from .schemas import EstablishmentCreate, EstablishmentUpdate, OccupancyEntryCreate, UserRole
 
 SEED_FILE = Path(__file__).with_name("establishments_seed.json")
+OCCUPANCY_SEED_FILE = Path(__file__).with_name("occupancy_seed.json")
 
 
 def infer_accommodation_type(name: str | None) -> str:
@@ -47,6 +48,17 @@ def date_to_datetime(value: date | None) -> datetime | None:
     if value is None:
         return None
     return datetime.combine(value, datetime.min.time(), tzinfo=UTC)
+
+
+def iso_to_datetime(value) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, dict) and "$date" in value:
+        value = value["$date"]
+    if isinstance(value, str):
+        normalized = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized)
+    return datetime.now(UTC)
 
 
 def leave_dates(establishment: dict) -> tuple[date | None, date | None]:
@@ -162,6 +174,7 @@ async def seed_demo_data() -> None:
     )
     await clean_legacy_establishments()
     await seed_establishments_from_file()
+    await seed_occupancy_from_file()
     await backfill_accommodation_types()
 
 
@@ -185,6 +198,14 @@ async def seed_establishments_from_file() -> None:
 
     db = get_database()
     records = json.loads(SEED_FILE.read_text(encoding="utf-8"))
+    seed_ids = [record["id"] for record in records]
+    if seed_ids:
+        await db.users.delete_many(
+            {
+                "role": UserRole.ESTABLISHMENT,
+                "_id": {"$nin": seed_ids},
+            }
+        )
     for record in records:
         document = {
             "_id": record["id"],
@@ -217,9 +238,25 @@ async def seed_establishments_from_file() -> None:
         }
         await db.users.update_one(
             {"_id": document["_id"]},
-            {"$setOnInsert": document},
+            {"$set": document},
             upsert=True,
         )
+
+
+async def seed_occupancy_from_file() -> None:
+    if not OCCUPANCY_SEED_FILE.exists():
+        return
+
+    db = get_database()
+    records = json.loads(OCCUPANCY_SEED_FILE.read_text(encoding="utf-8"))
+    await db.occupancy_entries.delete_many({})
+    for record in records:
+        record.pop("_id", None)
+        record["week_start"] = iso_to_datetime(record["week_start"])
+        record["created_at"] = iso_to_datetime(record.get("created_at"))
+        record["updated_at"] = iso_to_datetime(record.get("updated_at"))
+    if records:
+        await db.occupancy_entries.insert_many(records)
 
 
 async def backfill_accommodation_types() -> None:
