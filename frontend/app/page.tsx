@@ -947,6 +947,7 @@ function AdminPanel(props: {
     : props.period === "monthly"
       ? selectedMonthHasData
       : true;
+  const statsResponseCount = props.stats.type_rows.reduce((sum, row) => sum + row.response_count, 0);
 
   useEffect(() => {
     if (!props.selectedProfile && !communicationOpen) return;
@@ -1293,7 +1294,7 @@ function AdminPanel(props: {
             <small>para el periodo elegido</small>
           </div>
           <div className="dashboard-metric-card blue-card">
-            <span>Capacidad cargada</span>
+            <span>Capacidad habilitada</span>
             <strong>{totalPlaces}</strong>
             <small>{totalUnits} unidades</small>
           </div>
@@ -1377,6 +1378,11 @@ function AdminPanel(props: {
         </div>
         {!selectedPeriodHasData ? (
           <p className="empty-data-hint">No hay datos cargados para el periodo seleccionado.</p>
+        ) : null}
+        {selectedPeriodHasData && statsResponseCount === 0 ? (
+          <p className="empty-data-hint">
+            Hay establecimientos y capacidad habilitada, pero todavia no hay cargas de ocupacion para este periodo.
+          </p>
         ) : null}
         <StatsCharts rows={props.stats.type_rows} />
       </div>
