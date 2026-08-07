@@ -9,5 +9,23 @@
     "CAT/DAT": 173,
     "Hostels": 29,
     "Campings": 48
+  },
+  "occupancy": {
+    "source": "Ocupacion_alojamientos_categorizados_2026.xlsx",
+    "entries": 942,
+    "establishments_with_data": 230,
+    "periods": {
+      "2026-01": 236,
+      "2026-02": 177,
+      "2026-03": 133,
+      "2026-04": 396
+    },
+    "by_category": {
+      "Apart / cabanas": 304,
+      "B&B / hospedajes": 23,
+      "CAT/DAT": 492,
+      "Hostels": 82,
+      "Hoteles / hosterias": 41
+    }
   }
 }
