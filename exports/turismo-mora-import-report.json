@@ -2,6 +2,55 @@
   "establishments": 383,
   "temporary_leaves_applied": 54,
   "temporary_leaves_unmatched": [],
+  "occupancy": {
+    "historic_export_found": true,
+    "old_establishments": 343,
+    "matched_establishments": 305,
+    "unmatched_establishments": [
+      {
+        "id": "46995198",
+        "name": "Maktub Suite",
+        "entries": 10
+      },
+      {
+        "id": "95407506",
+        "name": "Casa Virgen de la Paz",
+        "entries": 7
+      },
+      {
+        "id": "77726057",
+        "name": "La Aguada",
+        "entries": 11
+      },
+      {
+        "id": "24803686",
+        "name": "La casa de Luna",
+        "entries": 4
+      },
+      {
+        "id": "38922240",
+        "name": "Lo de Hilda",
+        "entries": 1
+      },
+      {
+        "id": "24325794",
+        "name": "No Me Olvides",
+        "entries": 10
+      },
+      {
+        "id": "96125752",
+        "name": "Portal Norte",
+        "entries": 13
+      }
+    ],
+    "old_entries": 1202,
+    "remapped_entries": 1135,
+    "unmatched_entries": 59,
+    "match_reasons": {
+      "phone_or_type": 272,
+      "name": 33
+    }
+  },
   "by_category": {
     "Hoteles / hosterias": 11,
     "Apart / cabanas": 114,
