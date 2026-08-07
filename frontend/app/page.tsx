@@ -948,6 +948,7 @@ function AdminPanel(props: {
       ? selectedMonthHasData
       : true;
   const statsResponseCount = props.stats.type_rows.reduce((sum, row) => sum + row.response_count, 0);
+  const shouldShowEmptyStats = !selectedPeriodHasData || statsResponseCount === 0;
 
   useEffect(() => {
     if (!props.selectedProfile && !communicationOpen) return;
@@ -1376,15 +1377,14 @@ function AdminPanel(props: {
             </>
           ) : null}
         </div>
-        {!selectedPeriodHasData ? (
-          <p className="empty-data-hint">No hay datos cargados para el periodo seleccionado.</p>
-        ) : null}
-        {selectedPeriodHasData && statsResponseCount === 0 ? (
-          <p className="empty-data-hint">
-            Hay establecimientos y capacidad habilitada, pero todavia no hay cargas de ocupacion para este periodo.
-          </p>
-        ) : null}
-        <StatsCharts rows={props.stats.type_rows} />
+        {shouldShowEmptyStats ? (
+          <StatsEmptyState
+            hasPeriodData={selectedPeriodHasData}
+            activeCategories={props.stats.type_rows.length}
+          />
+        ) : (
+          <StatsCharts rows={props.stats.type_rows} />
+        )}
       </div>
       </section>
       ) : null}
@@ -1865,6 +1865,29 @@ function DownloadChartButton(props: { onDownload: () => void }) {
     <button className="icon-button compact-icon download-chart-button" type="button" title="Descargar gráfico" onClick={props.onDownload}>
       <Download size={16} />
     </button>
+  );
+}
+
+function StatsEmptyState(props: { hasPeriodData: boolean; activeCategories: number }) {
+  return (
+    <div className="stats-empty-state">
+      <div className="stats-empty-icon">
+        <BarChart3 size={28} />
+      </div>
+      <div>
+        <p className="eyebrow">Estadisticas sin respuestas</p>
+        <h3>{props.hasPeriodData ? "Todavia no hay ocupacion cargada" : "No hay periodo con ocupacion cargada"}</h3>
+        <p>
+          La base actual contiene el padron oficial del Excel Mora, categorias, capacidad y bajas temporales.
+          Los graficos se completan cuando los establecimientos cargan plazas y unidades ocupadas.
+        </p>
+        <div className="stats-empty-facts">
+          <span>{props.activeCategories} categorias activas en este periodo</span>
+          <span>Campings participan solo de diciembre a marzo</span>
+          <span>Las bajas temporales solo afectan estadisticas</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

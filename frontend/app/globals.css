@@ -775,6 +775,57 @@ select option:disabled {
   font-weight: 700;
 }
 
+.stats-empty-state {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: start;
+  border: 1px solid #cfe6d4;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(239, 248, 241, 0.96), rgba(255, 255, 255, 0.98));
+  padding: 24px;
+  box-shadow: 0 18px 40px rgba(33, 80, 55, 0.08);
+}
+
+.stats-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: #e3f5e9;
+  color: var(--brand);
+}
+
+.stats-empty-state h3 {
+  margin: 4px 0 8px;
+  font-size: 24px;
+}
+
+.stats-empty-state p {
+  max-width: 820px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.stats-empty-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.stats-empty-facts span {
+  border: 1px solid #d8e8d9;
+  border-radius: 999px;
+  background: #fbfdf9;
+  color: #244231;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 textarea {
   min-height: 96px;
   resize: vertical;
