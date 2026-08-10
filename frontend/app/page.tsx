@@ -921,7 +921,11 @@ function AdminPanel(props: {
   const [complianceSearch, setComplianceSearch] = useState("");
   const [complianceStatusFilter, setComplianceStatusFilter] = useState("all");
   const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [communicationMode, setCommunicationMode] = useState<"single" | "bulk">("single");
   const [communicationTargetId, setCommunicationTargetId] = useState("");
+  const [bulkTargetIds, setBulkTargetIds] = useState<string[]>([]);
+  const [bulkTargetIndex, setBulkTargetIndex] = useState(0);
+  const [bulkSentIds, setBulkSentIds] = useState<string[]>([]);
   const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
   const [communicationDetail, setCommunicationDetail] = useState("");
   const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance">("dashboard");
@@ -973,9 +977,21 @@ function AdminPanel(props: {
     () => props.establishments.filter((item) => item.phone || item.whatsapp),
     [props.establishments],
   );
+  const bulkCommunicationTargets = useMemo(
+    () => filteredCompliance
+      .filter((item) => !item.completed && targetHasPhone(item.establishment_id))
+      .map((item) => item.establishment_id),
+    [filteredCompliance, props.establishments],
+  );
   const selectedCommunicationTarget = useMemo(
-    () => communicationTargets.find((item) => item.id === communicationTargetId) ?? communicationTargets[0],
-    [communicationTargetId, communicationTargets],
+    () => {
+      if (communicationMode === "bulk") {
+        const bulkTargetId = bulkTargetIds[bulkTargetIndex];
+        return props.establishments.find((item) => item.id === bulkTargetId);
+      }
+      return communicationTargets.find((item) => item.id === communicationTargetId) ?? communicationTargets[0];
+    },
+    [bulkTargetIds, bulkTargetIndex, communicationMode, communicationTargetId, communicationTargets, props.establishments],
   );
   const communicationMessage = buildAssistedMessage(
     communicationTemplate,
@@ -997,6 +1013,9 @@ function AdminPanel(props: {
     ? Math.round((statsResponseCount / statsExpectedResponses) * 100)
     : 0;
   const shouldShowEmptyStats = !selectedPeriodHasData || statsResponseCount === 0;
+  const bulkTotal = bulkTargetIds.length;
+  const bulkCurrentNumber = bulkTotal ? bulkTargetIndex + 1 : 0;
+  const bulkProgress = bulkTotal ? Math.round((bulkSentIds.length / bulkTotal) * 100) : 0;
 
   useEffect(() => {
     if (!props.selectedProfile && !communicationOpen) return;
@@ -1082,7 +1101,21 @@ function AdminPanel(props: {
   function openCommunication(establishmentId?: string) {
     const pendingId = filteredCompliance.find((item) => !item.completed && (item.whatsapp || props.establishments.find((est) => est.id === item.establishment_id)?.phone))?.establishment_id;
     const nextTargetId = establishmentId || props.selectedProfile?.id || pendingId || communicationTargets[0]?.id || "";
+    setCommunicationMode("single");
+    setBulkTargetIds([]);
+    setBulkTargetIndex(0);
+    setBulkSentIds([]);
     setCommunicationTargetId(nextTargetId);
+    setCommunicationOpen(true);
+  }
+
+  function openBulkCommunication() {
+    setCommunicationMode("bulk");
+    setBulkTargetIds(bulkCommunicationTargets);
+    setBulkTargetIndex(0);
+    setBulkSentIds([]);
+    setCommunicationTemplate("load_reminder");
+    setCommunicationTargetId(bulkCommunicationTargets[0] ?? "");
     setCommunicationOpen(true);
   }
 
@@ -1096,6 +1129,20 @@ function AdminPanel(props: {
     const url = buildWhatsAppDeepLink(phone, communicationMessage);
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function goToBulkTarget(offset: number) {
+    if (!bulkTotal) return;
+    setBulkTargetIndex((current) => Math.min(Math.max(current + offset, 0), bulkTotal - 1));
+  }
+
+  function markBulkSentAndContinue() {
+    const currentId = bulkTargetIds[bulkTargetIndex];
+    if (!currentId) return;
+    setBulkSentIds((current) => current.includes(currentId) ? current : [...current, currentId]);
+    if (bulkTargetIndex < bulkTotal - 1) {
+      setBulkTargetIndex((current) => current + 1);
+    }
   }
 
   function closeProfileModal() {
@@ -1232,9 +1279,25 @@ function AdminPanel(props: {
                 <MessageCircle size={24} />
               </div>
               <div>
-                <h3>Mensaje listo para revisar</h3>
-                <p>Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado.</p>
+                <h3>{communicationMode === "bulk" ? "Envio masivo asistido" : "Mensaje listo para revisar"}</h3>
+                <p>
+                  {communicationMode === "bulk"
+                    ? "WhatsApp abre un destinatario por vez. Revisas, envias y avanzas al siguiente pendiente."
+                    : "Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado."}
+                </p>
               </div>
+              {communicationMode === "bulk" ? (
+                <div className="bulk-progress-card">
+                  <div>
+                    <span>Progreso</span>
+                    <strong>{bulkSentIds.length}/{bulkTotal}</strong>
+                  </div>
+                  <div className="bulk-progress-track">
+                    <span style={{ width: `${bulkProgress}%` }} />
+                  </div>
+                  <small>{bulkCurrentNumber ? `Contacto ${bulkCurrentNumber} de ${bulkTotal}` : "No hay pendientes con telefono"}</small>
+                </div>
+              ) : null}
               <div className="assisted-recipient">
                 <span>Destinatario</span>
                 <strong>{selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "Sin telefono disponible"}</strong>
@@ -1253,7 +1316,22 @@ function AdminPanel(props: {
                 </label>
                 <label>
                   Telefono WhatsApp
-                  {communicationTargets.length ? (
+                  {communicationMode === "bulk" ? (
+                    <select
+                      value={bulkTargetIds[bulkTargetIndex] ?? ""}
+                      onChange={(event) => setBulkTargetIndex(Math.max(bulkTargetIds.indexOf(event.target.value), 0))}
+                    >
+                      {bulkTargetIds.map((targetId, index) => {
+                        const target = props.establishments.find((item) => item.id === targetId);
+                        if (!target) return null;
+                        return (
+                          <option key={target.id} value={target.id}>
+                            {index + 1}. {(target.phone ?? target.whatsapp) || "Sin telefono"} - {target.accommodation_name ?? target.establishment_name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  ) : communicationTargets.length ? (
                     <select value={selectedCommunicationTarget?.id ?? ""} onChange={(event) => setCommunicationTargetId(event.target.value)}>
                       {communicationTargets.map((target) => (
                         <option key={target.id} value={target.id}>
@@ -1289,6 +1367,19 @@ function AdminPanel(props: {
                     <MessageCircle size={17} />
                     <span>Enviar WhatsApp</span>
                   </button>
+                  {communicationMode === "bulk" ? (
+                    <div className="bulk-actions">
+                      <button className="secondary-button" type="button" onClick={() => goToBulkTarget(-1)} disabled={bulkTargetIndex <= 0}>
+                        Anterior
+                      </button>
+                      <button className="primary-button" type="button" onClick={markBulkSentAndContinue} disabled={!selectedCommunicationTarget}>
+                        Marcar y seguir
+                      </button>
+                      <button className="secondary-button" type="button" onClick={() => goToBulkTarget(1)} disabled={bulkTargetIndex >= bulkTotal - 1}>
+                        Saltar
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1470,9 +1561,9 @@ function AdminPanel(props: {
               onChange={(event) => setComplianceSearch(event.target.value)}
             />
           </div>
-          <button className="primary-button reminder-all" type="button" onClick={() => openCommunication()}>
+          <button className="primary-button reminder-all" type="button" onClick={openBulkCommunication}>
             <MessageSquareText size={18} />
-            <span>Recordar pendientes</span>
+            <span>Recordar pendientes{bulkCommunicationTargets.length ? ` (${bulkCommunicationTargets.length})` : ""}</span>
           </button>
         </div>
         <div className="compliance-list scroll-list">
