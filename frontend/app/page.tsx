@@ -340,18 +340,7 @@ export default function Home() {
   async function loadAdminData(userId = user?.id ?? "meb-admin") {
     try {
       const statsAvailabilityResponse = await api.statsAvailability(userId);
-      const fallbackPeriod = latestAvailablePeriod(statsAvailabilityResponse);
-      const nextStatsYear =
-        (period === "yearly" || period === "monthly") && !hasYearData(statsAvailabilityResponse, statsYear)
-          ? fallbackPeriod?.year ?? statsYear
-          : statsYear;
-      const availableMonthsForYear = statsAvailabilityResponse.months_by_year[String(nextStatsYear)] ?? [];
-      const nextStatsMonth =
-        period === "monthly" && !hasMonthData(statsAvailabilityResponse, nextStatsYear, statsMonth)
-          ? fallbackPeriod?.year === nextStatsYear
-            ? fallbackPeriod.month
-            : [...availableMonthsForYear].sort((a, b) => b - a)[0] ?? statsMonth
-          : statsMonth;
+      const { nextStatsYear, nextStatsMonth } = resolveAvailableStatsPeriod(statsAvailabilityResponse);
 
       const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
         api.compliance(userId, weekStart, compliancePeriod),
@@ -371,6 +360,59 @@ export default function Home() {
       setStatsAvailability(demoStatsAvailability);
       setEstablishments(demoEstablishments);
       setMessage("Backend no disponible: panel admin en modo demo.");
+    }
+  }
+
+  function resolveAvailableStatsPeriod(availability: StatsAvailability) {
+    const fallbackPeriod = latestAvailablePeriod(availability);
+    const nextStatsYear =
+      (period === "yearly" || period === "monthly") && !hasYearData(availability, statsYear)
+        ? fallbackPeriod?.year ?? statsYear
+        : statsYear;
+    const availableMonthsForYear = availability.months_by_year[String(nextStatsYear)] ?? [];
+    const nextStatsMonth =
+      period === "monthly" && !hasMonthData(availability, nextStatsYear, statsMonth)
+        ? fallbackPeriod?.year === nextStatsYear
+          ? fallbackPeriod.month
+          : [...availableMonthsForYear].sort((a, b) => b - a)[0] ?? statsMonth
+        : statsMonth;
+
+    return { nextStatsYear, nextStatsMonth };
+  }
+
+  async function loadStatsData(userId = user?.id ?? "meb-admin") {
+    try {
+      const statsAvailabilityResponse = await api.statsAvailability(userId);
+      const { nextStatsYear, nextStatsMonth } = resolveAvailableStatsPeriod(statsAvailabilityResponse);
+      const statsResponse = await api.stats(
+        userId,
+        period,
+        nextStatsYear,
+        nextStatsMonth,
+        statsWeekStart,
+        statsRangeStart,
+        statsRangeEnd,
+      );
+      setStats(statsResponse);
+      setStatsAvailability(statsAvailabilityResponse);
+      if (nextStatsYear !== statsYear) setStatsYear(nextStatsYear);
+      if (nextStatsMonth !== statsMonth) setStatsMonth(nextStatsMonth);
+      setMessage("Estadisticas actualizadas.");
+    } catch {
+      setStats(demoStats);
+      setStatsAvailability(demoStatsAvailability);
+      setMessage("Backend no disponible: estadisticas demo.");
+    }
+  }
+
+  async function loadComplianceData(userId = user?.id ?? "meb-admin") {
+    try {
+      const complianceResponse = await api.compliance(userId, weekStart, compliancePeriod);
+      setCompliance(complianceResponse);
+      setMessage("Cumplimiento actualizado.");
+    } catch {
+      setCompliance(demoCompliance);
+      setMessage("Backend no disponible: cumplimiento demo.");
     }
   }
 
@@ -606,7 +648,8 @@ export default function Home() {
           onStatsWeekStartChange={setStatsWeekStart}
           onStatsRangeStartChange={setStatsRangeStart}
           onStatsRangeEndChange={setStatsRangeEnd}
-          onRefresh={() => loadAdminData()}
+          onRefreshStats={() => loadStatsData()}
+          onRefreshCompliance={() => loadComplianceData()}
           establishments={establishments}
           lastCreatedId={lastCreatedId}
           selectedProfile={selectedProfile}
@@ -842,7 +885,8 @@ function AdminPanel(props: {
   onStatsWeekStartChange: (value: string) => void;
   onStatsRangeStartChange: (value: string) => void;
   onStatsRangeEndChange: (value: string) => void;
-  onRefresh: () => void;
+  onRefreshStats: () => void;
+  onRefreshCompliance: () => void;
   establishments: EstablishmentSummary[];
   lastCreatedId: string;
   selectedProfile: EstablishmentSummary | null;
@@ -923,7 +967,6 @@ function AdminPanel(props: {
   const missingPhones = props.establishments.filter((item) => !item.phone && !item.whatsapp).length;
   const completedCompliance = props.compliance.filter((item) => item.completed).length;
   const pendingCompliance = Math.max(props.compliance.length - completedCompliance, 0);
-  const complianceRate = props.compliance.length ? Math.round((completedCompliance / props.compliance.length) * 100) : 0;
   const totalPlaces = props.establishments.reduce((sum, item) => sum + (item.places ?? 0), 0);
   const totalUnits = props.establishments.reduce((sum, item) => sum + (item.units ?? 0), 0);
   const communicationTargets = useMemo(
@@ -948,6 +991,11 @@ function AdminPanel(props: {
       ? selectedMonthHasData
       : true;
   const statsResponseCount = props.stats.type_rows.reduce((sum, row) => sum + row.response_count, 0);
+  const statsExpectedResponses = props.stats.type_rows.reduce((sum, row) => sum + row.expected_responses, 0);
+  const statsPendingResponses = Math.max(statsExpectedResponses - statsResponseCount, 0);
+  const statsResponseRate = statsExpectedResponses
+    ? Math.round((statsResponseCount / statsExpectedResponses) * 100)
+    : 0;
   const shouldShowEmptyStats = !selectedPeriodHasData || statsResponseCount === 0;
 
   useEffect(() => {
@@ -1286,12 +1334,12 @@ function AdminPanel(props: {
           </div>
           <div className="dashboard-metric-card green-card">
             <span>Cumplimiento</span>
-            <strong>{complianceRate}%</strong>
-            <small>{completedCompliance}/{props.compliance.length} completos</small>
+            <strong>{statsResponseRate}%</strong>
+            <small>{statsResponseCount}/{statsExpectedResponses} respuestas</small>
           </div>
           <div className="dashboard-metric-card amber-card">
             <span>Pendientes</span>
-            <strong>{pendingCompliance}</strong>
+            <strong>{statsPendingResponses}</strong>
             <small>para el periodo elegido</small>
           </div>
           <div className="dashboard-metric-card blue-card">
@@ -1315,7 +1363,7 @@ function AdminPanel(props: {
             <option value="weekend">Fin de semana</option>
             <option value="range">Rango de fechas</option>
           </select>
-          <button className="secondary-button" onClick={props.onRefresh}>Actualizar</button>
+          <button className="secondary-button" onClick={props.onRefreshStats}>Actualizar</button>
         </div>
         <div className="stats-filter-grid">
           {(props.period === "yearly" || props.period === "monthly") ? (
@@ -1411,7 +1459,7 @@ function AdminPanel(props: {
               <option value="missing">No cumplidos</option>
             </select>
             <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
-            <button className="secondary-button" onClick={props.onRefresh}>Revisar</button>
+            <button className="secondary-button" onClick={props.onRefreshCompliance}>Revisar</button>
           </div>
           <div className="search-box">
             <Search size={18} />
