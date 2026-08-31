@@ -193,6 +193,35 @@ function buildAssistedMessage(template: string, establishmentName: string, detai
   );
 }
 
+function buildGroupAssistedMessage(template: string, detail: string, periodStart: string) {
+  const cleanDetail = detail.trim() || "Sin detalle adicional.";
+
+  if (template === "missing_data") {
+    return (
+      `Hola. Desde Turismo MEB les informamos que hay cargas del periodo iniciado el ${periodStart} pendientes o incompletas.\n\n` +
+      `Detalle: ${cleanDetail}\n\n` +
+      "Por favor, revisen la informacion cargada para completar el registro.\n\nMuchas gracias."
+    );
+  }
+
+  if (template === "admin_notice") {
+    return (
+      "Hola. Desde Turismo MEB necesitamos compartir una consulta administrativa vinculada a los establecimientos.\n\n" +
+      `Detalle: ${cleanDetail}\n\n` +
+      "Por favor, respondan este mensaje cuando puedan.\n\nMuchas gracias."
+    );
+  }
+
+  if (template === "custom") {
+    return cleanDetail;
+  }
+
+  return (
+    `Hola. Desde Turismo MEB les recordamos cargar la informacion de ocupacion correspondiente al periodo iniciado el ${periodStart}.\n\n` +
+    `Detalle: ${cleanDetail}\n\nMuchas gracias.`
+  );
+}
+
 function buildWhatsAppDeepLink(phone: string | undefined, message: string) {
   const normalizedPhone = normalizeWhatsAppPhone(phone);
   if (!normalizedPhone) return "";
@@ -1125,11 +1154,12 @@ function AdminPanel(props: {
   const [complianceSearch, setComplianceSearch] = useState("");
   const [complianceStatusFilter, setComplianceStatusFilter] = useState("all");
   const [communicationOpen, setCommunicationOpen] = useState(false);
-  const [communicationMode, setCommunicationMode] = useState<"single" | "bulk">("single");
+  const [communicationMode, setCommunicationMode] = useState<"single" | "bulk" | "group">("single");
   const [communicationTargetId, setCommunicationTargetId] = useState("");
   const [bulkTargetIds, setBulkTargetIds] = useState<string[]>([]);
   const [bulkTargetIndex, setBulkTargetIndex] = useState(0);
   const [bulkSentIds, setBulkSentIds] = useState<string[]>([]);
+  const [groupCopyStatus, setGroupCopyStatus] = useState("");
   const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
   const [communicationDetail, setCommunicationDetail] = useState("");
   const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance">("dashboard");
@@ -1197,12 +1227,14 @@ function AdminPanel(props: {
     },
     [bulkTargetIds, bulkTargetIndex, communicationMode, communicationTargetId, communicationTargets, props.establishments],
   );
-  const communicationMessage = buildAssistedMessage(
-    communicationTemplate,
-    selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "establecimiento",
-    communicationDetail,
-    props.weekStart,
-  );
+  const communicationMessage = communicationMode === "group"
+    ? buildGroupAssistedMessage(communicationTemplate, communicationDetail, props.weekStart)
+    : buildAssistedMessage(
+        communicationTemplate,
+        selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "establecimiento",
+        communicationDetail,
+        props.weekStart,
+      );
   const selectedYearHasData = hasYearData(props.statsAvailability, props.statsYear);
   const selectedMonthHasData = hasMonthData(props.statsAvailability, props.statsYear, props.statsMonth);
   const selectedPeriodHasData = props.period === "yearly"
@@ -1309,6 +1341,7 @@ function AdminPanel(props: {
     setBulkTargetIds([]);
     setBulkTargetIndex(0);
     setBulkSentIds([]);
+    setGroupCopyStatus("");
     setCommunicationTargetId(nextTargetId);
     setCommunicationOpen(true);
   }
@@ -1318,8 +1351,19 @@ function AdminPanel(props: {
     setBulkTargetIds(bulkCommunicationTargets);
     setBulkTargetIndex(0);
     setBulkSentIds([]);
+    setGroupCopyStatus("");
     setCommunicationTemplate("load_reminder");
     setCommunicationTargetId(bulkCommunicationTargets[0] ?? "");
+    setCommunicationOpen(true);
+  }
+
+  function openGroupCommunication() {
+    setCommunicationMode("group");
+    setBulkTargetIds([]);
+    setBulkTargetIndex(0);
+    setBulkSentIds([]);
+    setGroupCopyStatus("");
+    setCommunicationTemplate("load_reminder");
     setCommunicationOpen(true);
   }
 
@@ -1329,10 +1373,23 @@ function AdminPanel(props: {
   }
 
   function sendAssistedWhatsApp() {
+    if (communicationMode === "group") {
+      window.open("https://web.whatsapp.com/", "_blank", "noopener,noreferrer");
+      return;
+    }
     const phone = selectedCommunicationTarget?.phone ?? selectedCommunicationTarget?.whatsapp;
     const url = buildWhatsAppDeepLink(phone, communicationMessage);
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function copyGroupMessage() {
+    try {
+      await navigator.clipboard.writeText(communicationMessage);
+      setGroupCopyStatus("Mensaje copiado. Pegalo en el grupo de WhatsApp.");
+    } catch {
+      setGroupCopyStatus("No se pudo copiar automaticamente. Selecciona el texto de la vista previa.");
+    }
   }
 
   function goToBulkTarget(offset: number) {
@@ -1483,11 +1540,19 @@ function AdminPanel(props: {
                 <MessageCircle size={24} />
               </div>
               <div>
-                <h3>{communicationMode === "bulk" ? "Envio masivo asistido" : "Mensaje listo para revisar"}</h3>
+                <h3>
+                  {communicationMode === "group"
+                    ? "Mensaje para grupo"
+                    : communicationMode === "bulk"
+                      ? "Envio masivo asistido"
+                      : "Mensaje listo para revisar"}
+                </h3>
                 <p>
-                  {communicationMode === "bulk"
-                    ? "WhatsApp abre un destinatario por vez. Revisas, envias y avanzas al siguiente pendiente."
-                    : "Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado."}
+                  {communicationMode === "group"
+                    ? "Copias el texto, abris WhatsApp Web y lo pegas en el grupo que corresponda."
+                    : communicationMode === "bulk"
+                      ? "WhatsApp abre un destinatario por vez. Revisas, envias y avanzas al siguiente pendiente."
+                      : "Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado."}
                 </p>
               </div>
               {communicationMode === "bulk" ? (
@@ -1503,9 +1568,17 @@ function AdminPanel(props: {
                 </div>
               ) : null}
               <div className="assisted-recipient">
-                <span>Destinatario</span>
-                <strong>{selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "Sin telefono disponible"}</strong>
-                <small>{selectedCommunicationTarget?.phone ?? selectedCommunicationTarget?.whatsapp ?? "Agrega un telefono al perfil"}</small>
+                <span>{communicationMode === "group" ? "Destino" : "Destinatario"}</span>
+                <strong>
+                  {communicationMode === "group"
+                    ? "Grupo de WhatsApp"
+                    : selectedCommunicationTarget?.accommodation_name ?? selectedCommunicationTarget?.establishment_name ?? "Sin telefono disponible"}
+                </strong>
+                <small>
+                  {communicationMode === "group"
+                    ? "El grupo se elige en WhatsApp Web/app"
+                    : selectedCommunicationTarget?.phone ?? selectedCommunicationTarget?.whatsapp ?? "Agrega un telefono al perfil"}
+                </small>
               </div>
             </aside>
             <div className="assisted-workspace">
@@ -1519,8 +1592,10 @@ function AdminPanel(props: {
                   </select>
                 </label>
                 <label>
-                  Telefono WhatsApp
-                  {communicationMode === "bulk" ? (
+                  {communicationMode === "group" ? "Destino WhatsApp" : "Telefono WhatsApp"}
+                  {communicationMode === "group" ? (
+                    <input value="Copiar y pegar en un grupo" disabled />
+                  ) : communicationMode === "bulk" ? (
                     <select
                       value={bulkTargetIds[bulkTargetIndex] ?? ""}
                       onChange={(event) => setBulkTargetIndex(Math.max(bulkTargetIds.indexOf(event.target.value), 0))}
@@ -1562,15 +1637,28 @@ function AdminPanel(props: {
                   <textarea readOnly value={communicationMessage} />
                 </label>
                 <div className="assisted-send-area">
+                  {communicationMode === "group" ? (
+                    <button
+                      className="secondary-button whatsapp-copy-button"
+                      type="button"
+                      onClick={copyGroupMessage}
+                    >
+                      <Copy size={17} />
+                      <span>Copiar mensaje</span>
+                    </button>
+                  ) : null}
                   <button
                     className="primary-button whatsapp-send-button"
                     type="button"
                     onClick={sendAssistedWhatsApp}
-                    disabled={!selectedCommunicationTarget}
+                    disabled={communicationMode !== "group" && !selectedCommunicationTarget}
                   >
                     <MessageCircle size={17} />
-                    <span>Enviar WhatsApp</span>
+                    <span>{communicationMode === "group" ? "Abrir WhatsApp" : "Enviar WhatsApp"}</span>
                   </button>
+                  {communicationMode === "group" && groupCopyStatus ? (
+                    <p className="group-copy-status">{groupCopyStatus}</p>
+                  ) : null}
                   {communicationMode === "bulk" ? (
                     <div className="bulk-actions">
                       <button className="secondary-button" type="button" onClick={() => goToBulkTarget(-1)} disabled={bulkTargetIndex <= 0}>
@@ -1797,6 +1885,10 @@ function AdminPanel(props: {
           <button className="primary-button reminder-all" type="button" onClick={openBulkCommunication}>
             <MessageSquareText size={18} />
             <span>Recordar pendientes{bulkCommunicationTargets.length ? ` (${bulkCommunicationTargets.length})` : ""}</span>
+          </button>
+          <button className="secondary-button reminder-all" type="button" onClick={openGroupCommunication}>
+            <MessageCircle size={18} />
+            <span>Mensaje para grupo</span>
           </button>
         </div>
         <div className="compliance-list scroll-list">
