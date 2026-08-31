@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 class UserRole(StrEnum):
     ESTABLISHMENT = "establishment"
     ADMIN = "admin"
+    TOURISM = "tourism"
+    MARKETING = "marketing"
 
 
 class User(BaseModel):
@@ -104,6 +106,8 @@ class EstablishmentSummary(BaseModel):
     accommodation_type: str | None = None
     temporary_leave_start: date | None = None
     temporary_leave_end: date | None = None
+    response_count: int = 0
+    last_response: date | None = None
 
 
 class ComplianceStatus(BaseModel):

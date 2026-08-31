@@ -1,4 +1,4 @@
-export type Role = "establishment" | "admin";
+export type Role = "establishment" | "admin" | "tourism" | "marketing";
 
 export type User = {
   id: string;
@@ -23,6 +23,8 @@ export type User = {
   accommodation_type?: string;
   temporary_leave_start?: string;
   temporary_leave_end?: string;
+  response_count?: number;
+  last_response?: string;
 };
 
 export type Entry = {
@@ -111,6 +113,8 @@ export type EstablishmentSummary = {
   accommodation_type?: string;
   temporary_leave_start?: string;
   temporary_leave_end?: string;
+  response_count?: number;
+  last_response?: string;
 };
 
 export type EstablishmentPayload = {
@@ -243,6 +247,16 @@ export const demoUsers: User[] = [
     id: "meb-admin",
     role: "admin",
     display_name: "Admin MEB",
+  },
+  {
+    id: "meb-turismo",
+    role: "tourism",
+    display_name: "Equipo Turismo",
+  },
+  {
+    id: "meb-marketing",
+    role: "marketing",
+    display_name: "Marketing MEB",
   },
 ];
 

@@ -199,6 +199,13 @@ function buildWhatsAppDeepLink(phone: string | undefined, message: string) {
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
 }
 
+function panelTitle(user: User) {
+  if (user.role === "admin") return "Panel admin";
+  if (user.role === "tourism") return "Panel turismo";
+  if (user.role === "marketing") return "Panel marketing";
+  return user.establishment_name ?? user.display_name;
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [entries, setEntries] = useState<Entry[]>(demoEntries);
@@ -227,6 +234,9 @@ export default function Home() {
   const [message, setMessage] = useState("Modo demo activo hasta conectar el backend.");
 
   const isAdmin = user?.role === "admin";
+  const isTourism = user?.role === "tourism";
+  const isMarketing = user?.role === "marketing";
+  const canViewStats = isAdmin || isMarketing;
   const ownEntries = useMemo(
     () => entries.filter((entry) => !user || entry.establishment_id === user.id),
     [entries, user],
@@ -251,6 +261,12 @@ export default function Home() {
       }
       if (response.user.role === "admin") {
         await loadAdminData(response.user.id);
+      }
+      if (response.user.role === "tourism") {
+        await loadTourismData(response.user.id);
+      }
+      if (response.user.role === "marketing") {
+        await loadStatsData(response.user.id);
       }
     } catch {
       setLoginError(demo ? "" : "No encontramos un establecimiento con ese ID.");
@@ -277,7 +293,15 @@ export default function Home() {
       setLoginError("");
       setUser(response.user);
       setMessage("Conectado al backend.");
-      await loadAdminData(response.user.id);
+      if (response.user.role === "admin") {
+        await loadAdminData(response.user.id);
+      }
+      if (response.user.role === "tourism") {
+        await loadTourismData(response.user.id);
+      }
+      if (response.user.role === "marketing") {
+        await loadStatsData(response.user.id);
+      }
     } catch {
       if (adminUsername.trim() === "admin" && adminPassword.trim() === "admin123") {
         const demoAdmin = demoUsers.find((item) => item.role === "admin");
@@ -290,8 +314,25 @@ export default function Home() {
         setMessage("Backend no disponible: usando admin demo.");
         return;
       }
+      if (adminUsername.trim() === "turismo" && adminPassword.trim() === "turismo123") {
+        const demoTourism = demoUsers.find((item) => item.role === "tourism");
+        setUser(demoTourism ?? null);
+        setEstablishments(demoEstablishments);
+        setLoginError("");
+        setMessage("Backend no disponible: usando turismo demo.");
+        return;
+      }
+      if (adminUsername.trim() === "marketing" && adminPassword.trim() === "marketing123") {
+        const demoMarketing = demoUsers.find((item) => item.role === "marketing");
+        setUser(demoMarketing ?? null);
+        setStats(demoStats);
+        setStatsAvailability(demoStatsAvailability);
+        setLoginError("");
+        setMessage("Backend no disponible: usando marketing demo.");
+        return;
+      }
       setLoginError("Usuario o contrasena incorrectos.");
-      setMessage("Usuario o contrasena de admin incorrectos.");
+      setMessage("Usuario o contrasena incorrectos.");
     }
   }
 
@@ -413,6 +454,17 @@ export default function Home() {
     } catch {
       setCompliance(demoCompliance);
       setMessage("Backend no disponible: cumplimiento demo.");
+    }
+  }
+
+  async function loadTourismData(userId = user?.id ?? "meb-turismo") {
+    try {
+      const establishmentsResponse = await api.establishments(userId);
+      setEstablishments(establishmentsResponse);
+      setMessage("Listado de turismo actualizado.");
+    } catch {
+      setEstablishments(demoEstablishments);
+      setMessage("Backend no disponible: listado turismo demo.");
     }
   }
 
@@ -557,7 +609,7 @@ export default function Home() {
               <div className="panel-title card-title">
                 <div>
                   <Users size={21} />
-                  <h2>Admin MEB</h2>
+                  <h2>Usuarios MEB</h2>
                 </div>
                 <LogoMark className="brand-logo card-logo" />
               </div>
@@ -575,7 +627,7 @@ export default function Home() {
               </label>
               <button className="primary-button" type="submit">
                 <LogIn size={18} />
-                <span>Ingresar admin</span>
+                <span>Ingresar</span>
               </button>
             </form>
             <form className="login-card" onSubmit={(event) => { event.preventDefault(); login(loginId); }}>
@@ -615,7 +667,7 @@ export default function Home() {
           <LogoMark className="brand-logo topbar-logo" src="/el-bolson-logo-title.png" />
           <div>
             <p className="eyebrow">Turismo MEB</p>
-            <h1>{isAdmin ? "Panel admin" : user.establishment_name}</h1>
+            <h1>{panelTitle(user)}</h1>
           </div>
         </div>
         <button className="icon-button" onClick={() => setUser(null)} title="Salir">
@@ -629,6 +681,7 @@ export default function Home() {
 
       {isAdmin ? (
         <AdminPanel
+          accessRole="admin"
           compliance={compliance}
           stats={stats}
           statsAvailability={statsAvailability}
@@ -665,6 +718,48 @@ export default function Home() {
             setSelectedProfile(null);
             setSelectedProfileEntries([]);
           }}
+        />
+      ) : canViewStats ? (
+        <AdminPanel
+          accessRole="marketing"
+          compliance={[]}
+          stats={stats}
+          statsAvailability={statsAvailability}
+          period={period}
+          compliancePeriod={compliancePeriod}
+          weekStart={weekStart}
+          statsYear={statsYear}
+          statsMonth={statsMonth}
+          statsWeekStart={statsWeekStart}
+          statsRangeStart={statsRangeStart}
+          statsRangeEnd={statsRangeEnd}
+          onPeriodChange={setPeriod}
+          onCompliancePeriodChange={setCompliancePeriod}
+          onWeekChange={setWeekStart}
+          onStatsYearChange={setStatsYear}
+          onStatsMonthChange={setStatsMonth}
+          onStatsWeekStartChange={setStatsWeekStart}
+          onStatsRangeStartChange={setStatsRangeStart}
+          onStatsRangeEndChange={setStatsRangeEnd}
+          onRefreshStats={() => loadStatsData()}
+          onRefreshCompliance={() => undefined}
+          establishments={[]}
+          lastCreatedId={lastCreatedId}
+          selectedProfile={null}
+          selectedProfileEntries={[]}
+          onCreateEstablishment={() => undefined}
+          onUpdateEstablishment={() => undefined}
+          onDeleteEstablishment={() => undefined}
+          onOpenEstablishment={() => undefined}
+          onOpenCompliance={() => undefined}
+          onSendReminder={() => undefined}
+          onSendMissingReminders={() => undefined}
+          onCloseProfile={() => undefined}
+        />
+      ) : isTourism ? (
+        <TourismPanel
+          establishments={establishments}
+          onRefresh={() => loadTourismData()}
         />
       ) : (
         <EstablishmentPanel
@@ -865,7 +960,115 @@ function EstablishmentPanel(props: {
   );
 }
 
+function TourismPanel(props: {
+  establishments: EstablishmentSummary[];
+  onRefresh: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredEstablishments = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return props.establishments;
+    return props.establishments.filter((item) =>
+      [
+        item.id,
+        item.accommodation_name,
+        item.establishment_name,
+        item.address,
+        item.phone,
+        item.accommodation_type,
+        item.social_reason,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [props.establishments, search]);
+  const totalResponses = props.establishments.reduce((sum, item) => sum + (item.response_count ?? 0), 0);
+  const activeRespondents = props.establishments.filter((item) => (item.response_count ?? 0) > 0).length;
+  const maxResponses = Math.max(...props.establishments.map((item) => item.response_count ?? 0), 1);
+
+  return (
+    <section className="tourism-dashboard">
+      <div className="dashboard-hero tourism-hero">
+        <div>
+          <p className="eyebrow">Equipo Turismo</p>
+          <h2>Ranking de respuestas</h2>
+          <p>Listado operativo de alojamientos ordenado desde quienes mas cargaron hasta quienes menos respondieron.</p>
+        </div>
+        <div className="dashboard-hero-mark">
+          <LogoMark className="dashboard-logo" src="/el-bolson-logo-transparent.png" />
+        </div>
+      </div>
+
+      <div className="dashboard-metrics">
+        <div className="dashboard-metric-card">
+          <span>Alojamientos</span>
+          <strong>{props.establishments.length}</strong>
+          <small>en el listado oficial</small>
+        </div>
+        <div className="dashboard-metric-card green-card">
+          <span>Con respuestas</span>
+          <strong>{activeRespondents}</strong>
+          <small>{totalResponses} cargas totales</small>
+        </div>
+        <div className="dashboard-metric-card amber-card">
+          <span>Sin respuestas</span>
+          <strong>{props.establishments.length - activeRespondents}</strong>
+          <small>para seguimiento</small>
+        </div>
+      </div>
+
+      <section className="panel tourism-ranking-panel">
+        <div className="panel-header">
+          <div className="panel-title">
+            <ClipboardList size={21} />
+            <h2>Alojamientos por participacion</h2>
+          </div>
+          <button className="secondary-button inline-button" type="button" onClick={props.onRefresh}>
+            Actualizar
+          </button>
+        </div>
+        <div className="search-box">
+          <Search size={18} />
+          <input
+            aria-label="Buscar alojamiento"
+            placeholder="Buscar alojamiento, ID, direccion o categoria"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <div className="tourism-ranking-list">
+          {filteredEstablishments.map((item, index) => {
+            const responseCount = item.response_count ?? 0;
+            const width = Math.max(6, Math.round((responseCount / maxResponses) * 100));
+            return (
+              <article className="tourism-ranking-item" key={item.id}>
+                <div className="ranking-position">{index + 1}</div>
+                <div className="ranking-main">
+                  <div className="ranking-title-row">
+                    <strong>{item.accommodation_name ?? item.establishment_name}</strong>
+                    <span>{responseCount} respuesta{responseCount === 1 ? "" : "s"}</span>
+                  </div>
+                  <div className="ranking-progress">
+                    <span style={{ width: `${width}%` }} />
+                  </div>
+                  <div className="ranking-meta">
+                    <small>ID {item.id}</small>
+                    <small>{item.accommodation_type ?? "Sin categoria"}</small>
+                    <small>{item.last_response ? `Ultima carga ${item.last_response}` : "Sin cargas"}</small>
+                    <small>{formatOptionalNumber(item.places)} plazas / {formatOptionalNumber(item.units)} unidades</small>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </section>
+  );
+}
+
 function AdminPanel(props: {
+  accessRole: "admin" | "marketing";
   compliance: Compliance[];
   stats: StatsResponse;
   statsAvailability: StatsAvailability;
@@ -900,6 +1103,7 @@ function AdminPanel(props: {
   onSendMissingReminders: () => void;
   onCloseProfile: () => void;
 }) {
+  const canManage = props.accessRole === "admin";
   const [newParcelNumber, setNewParcelNumber] = useState("");
   const [newAccommodationName, setNewAccommodationName] = useState("");
   const [newAddress, setNewAddress] = useState("");
@@ -1152,7 +1356,7 @@ function AdminPanel(props: {
 
   return (
     <section className="admin-layout">
-      {props.selectedProfile ? (
+      {canManage && props.selectedProfile ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={closeProfileModal}>
         <section className="panel profile-panel modal-card profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" onMouseDown={(event) => event.stopPropagation()}>
           <div className="profile-actions">
@@ -1252,7 +1456,7 @@ function AdminPanel(props: {
         </section>
         </div>
       ) : null}
-      {communicationOpen ? (
+      {canManage && communicationOpen ? (
         <div className="modal-backdrop communication-backdrop" role="presentation" onMouseDown={() => setCommunicationOpen(false)}>
         <section className="assisted-communication-panel modal-card communication-modal" id="comunicacion-asistida" role="dialog" aria-modal="true" aria-labelledby="communication-modal-title" onMouseDown={(event) => event.stopPropagation()}>
           <div className="assisted-communication-header">
@@ -1387,6 +1591,7 @@ function AdminPanel(props: {
         </section>
         </div>
       ) : null}
+      {canManage ? (
       <section className="admin-command-center">
         <button className={adminView === "dashboard" ? "command-button active" : "command-button"} type="button" onClick={() => setAdminView("dashboard")}>
           <BarChart3 size={22} />
@@ -1404,6 +1609,7 @@ function AdminPanel(props: {
           <small>{pendingCompliance} pendientes</small>
         </button>
       </section>
+      ) : null}
 
       {adminView === "dashboard" ? (
       <section className="dashboard-view">
@@ -1418,26 +1624,53 @@ function AdminPanel(props: {
           </div>
         </div>
         <div className="dashboard-metrics">
-          <div className="dashboard-metric-card">
-            <span>Establecimientos</span>
-            <strong>{props.establishments.length}</strong>
-            <small>{missingPhones} sin telefono</small>
-          </div>
-          <div className="dashboard-metric-card green-card">
-            <span>Cumplimiento</span>
-            <strong>{statsResponseRate}%</strong>
-            <small>{statsResponseCount}/{statsExpectedResponses} respuestas</small>
-          </div>
-          <div className="dashboard-metric-card amber-card">
-            <span>Pendientes</span>
-            <strong>{statsPendingResponses}</strong>
-            <small>para el periodo elegido</small>
-          </div>
-          <div className="dashboard-metric-card blue-card">
-            <span>Capacidad habilitada</span>
-            <strong>{totalPlaces}</strong>
-            <small>{totalUnits} unidades</small>
-          </div>
+          {canManage ? (
+            <>
+              <div className="dashboard-metric-card">
+                <span>Establecimientos</span>
+                <strong>{props.establishments.length}</strong>
+                <small>{missingPhones} sin telefono</small>
+              </div>
+              <div className="dashboard-metric-card green-card">
+                <span>Cumplimiento</span>
+                <strong>{statsResponseRate}%</strong>
+                <small>{statsResponseCount}/{statsExpectedResponses} respuestas</small>
+              </div>
+              <div className="dashboard-metric-card amber-card">
+                <span>Pendientes</span>
+                <strong>{statsPendingResponses}</strong>
+                <small>para el periodo elegido</small>
+              </div>
+              <div className="dashboard-metric-card blue-card">
+                <span>Capacidad habilitada</span>
+                <strong>{totalPlaces}</strong>
+                <small>{totalUnits} unidades</small>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="dashboard-metric-card">
+                <span>Categorias</span>
+                <strong>{props.stats.type_rows.length}</strong>
+                <small>con lectura estadistica</small>
+              </div>
+              <div className="dashboard-metric-card green-card">
+                <span>Respuestas</span>
+                <strong>{statsResponseCount}</strong>
+                <small>{statsResponseRate}% de respuesta</small>
+              </div>
+              <div className="dashboard-metric-card amber-card">
+                <span>Esperadas</span>
+                <strong>{statsExpectedResponses}</strong>
+                <small>{statsPendingResponses} pendientes</small>
+              </div>
+              <div className="dashboard-metric-card blue-card">
+                <span>Periodo</span>
+                <strong>{props.stats.weeks}</strong>
+                <small>semana{props.stats.weeks === 1 ? "" : "s"} analizada{props.stats.weeks === 1 ? "" : "s"}</small>
+              </div>
+            </>
+          )}
         </div>
       <div className="panel dashboard-stats-panel">
         <div className="panel-header">
@@ -1528,7 +1761,7 @@ function AdminPanel(props: {
       </section>
       ) : null}
 
-      {adminView === "compliance" ? (
+      {canManage && adminView === "compliance" ? (
       <section className="panel compliance-panel dashboard-section-panel">
         <div className="panel-header">
           <div className="panel-title">
@@ -1593,7 +1826,7 @@ function AdminPanel(props: {
       </section>
       ) : null}
 
-      {adminView === "create" ? (
+      {canManage && adminView === "create" ? (
       <section className="panel establishments-panel dashboard-section-panel">
         <div className="panel-header">
           <div className="panel-title">

@@ -158,6 +158,8 @@ def serialize_user(document: dict) -> dict:
         "accommodation_type": document.get("accommodation_type") or infer_accommodation_type(establishment_name),
         "temporary_leave_start": serialize_optional_date(document.get("temporary_leave_start")),
         "temporary_leave_end": serialize_optional_date(document.get("temporary_leave_end")),
+        "response_count": document.get("response_count", 0),
+        "last_response": serialize_optional_date(document.get("last_response")),
     }
 
 
@@ -194,6 +196,30 @@ async def seed_demo_data() -> None:
                 "display_name": "Admin MEB",
                 "username": "admin",
                 "password": "admin123",
+            }
+        },
+        upsert=True,
+    )
+    await db.users.update_one(
+        {"_id": "meb-turismo"},
+        {
+            "$set": {
+                "role": UserRole.TOURISM,
+                "display_name": "Equipo Turismo",
+                "username": "turismo",
+                "password": "turismo123",
+            }
+        },
+        upsert=True,
+    )
+    await db.users.update_one(
+        {"_id": "meb-marketing"},
+        {
+            "$set": {
+                "role": UserRole.MARKETING,
+                "display_name": "Marketing MEB",
+                "username": "marketing",
+                "password": "marketing123",
             }
         },
         upsert=True,
@@ -311,15 +337,45 @@ async def find_user(user_id: str) -> dict | None:
 
 
 async def find_admin_by_credentials(username: str, password: str) -> dict | None:
-    user = await get_database().users.find_one({"role": UserRole.ADMIN, "username": username})
-    if not user or not compare_digest(user.get("password", ""), password):
+    user = await get_database().users.find_one({"username": username})
+    if (
+        not user
+        or user.get("role") == UserRole.ESTABLISHMENT
+        or not compare_digest(user.get("password", ""), password)
+    ):
         return None
     return user
 
 
-async def list_establishments() -> list[dict]:
+async def response_counts_by_establishment() -> dict[str, dict]:
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$establishment_id",
+                "response_count": {"$sum": 1},
+                "last_response": {"$max": "$week_start"},
+            }
+        }
+    ]
+    counts = {}
+    async for document in get_database().occupancy_entries.aggregate(pipeline):
+        counts[document["_id"]] = {
+            "response_count": document["response_count"],
+            "last_response": document["last_response"],
+        }
+    return counts
+
+
+async def list_establishments(sort_by_response_count: bool = False) -> list[dict]:
     cursor = get_database().users.find({"role": UserRole.ESTABLISHMENT}).sort("establishment_name", ASCENDING)
-    return [serialize_user(document) async for document in cursor]
+    response_counts = await response_counts_by_establishment()
+    establishments = []
+    async for document in cursor:
+        document.update(response_counts.get(document["_id"], {}))
+        establishments.append(serialize_user(document))
+    if sort_by_response_count:
+        establishments.sort(key=lambda item: (-item["response_count"], item["establishment_name"].lower()))
+    return establishments
 
 
 async def create_establishment(payload: EstablishmentCreate) -> dict:

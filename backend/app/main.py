@@ -75,6 +75,45 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_stats_access(user: User = Depends(get_current_user)) -> User:
+    if user.role not in {UserRole.ADMIN, UserRole.MARKETING}:
+        raise HTTPException(status_code=403, detail="Stats access required")
+    return user
+
+
+def require_establishment_list_access(user: User = Depends(get_current_user)) -> User:
+    if user.role not in {UserRole.ADMIN, UserRole.TOURISM}:
+        raise HTTPException(status_code=403, detail="Establishment list access required")
+    return user
+
+
+def establishment_summary(user: dict) -> EstablishmentSummary:
+    return EstablishmentSummary(
+        id=user["id"],
+        establishment_name=user["establishment_name"] or user["display_name"],
+        whatsapp=user["whatsapp"] or "",
+        parcel_number=user["parcel_number"],
+        accommodation_name=user["accommodation_name"],
+        address=user["address"],
+        phone=user["phone"],
+        social_reason=user["social_reason"],
+        email=user["email"],
+        category_number=user["category_number"],
+        category_numbers=user["category_numbers"],
+        accommodation_types=user["accommodation_types"],
+        habilitation_number=user["habilitation_number"],
+        nomenclature=user["nomenclature"],
+        neighborhood=user["neighborhood"],
+        units=user["units"],
+        places=user["places"],
+        accommodation_type=user["accommodation_type"],
+        temporary_leave_start=user["temporary_leave_start"],
+        temporary_leave_end=user["temporary_leave_end"],
+        response_count=user["response_count"],
+        last_response=user["last_response"],
+    )
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -99,32 +138,9 @@ async def login(payload: LoginRequest) -> LoginResponse:
 
 
 @app.get("/establishments", response_model=list[EstablishmentSummary])
-async def establishments(_: User = Depends(require_admin)) -> list[EstablishmentSummary]:
-    return [
-        EstablishmentSummary(
-            id=user["id"],
-            establishment_name=user["establishment_name"] or user["display_name"],
-            whatsapp=user["whatsapp"] or "",
-            parcel_number=user["parcel_number"],
-            accommodation_name=user["accommodation_name"],
-            address=user["address"],
-            phone=user["phone"],
-            social_reason=user["social_reason"],
-            email=user["email"],
-            category_number=user["category_number"],
-            category_numbers=user["category_numbers"],
-            accommodation_types=user["accommodation_types"],
-            habilitation_number=user["habilitation_number"],
-            nomenclature=user["nomenclature"],
-            neighborhood=user["neighborhood"],
-            units=user["units"],
-            places=user["places"],
-            accommodation_type=user["accommodation_type"],
-            temporary_leave_start=user["temporary_leave_start"],
-            temporary_leave_end=user["temporary_leave_end"],
-        )
-        for user in await list_establishments()
-    ]
+async def establishments(user: User = Depends(require_establishment_list_access)) -> list[EstablishmentSummary]:
+    sort_by_response_count = user.role == UserRole.TOURISM
+    return [establishment_summary(item) for item in await list_establishments(sort_by_response_count)]
 
 
 @app.post("/admin/establishments", response_model=EstablishmentSummary, status_code=201)
@@ -137,28 +153,7 @@ async def add_establishment(
     except DuplicateKeyError as exc:
         raise HTTPException(status_code=409, detail="Establishment ID already exists") from exc
 
-    return EstablishmentSummary(
-        id=user["id"],
-        establishment_name=user["establishment_name"] or user["display_name"],
-        whatsapp=user["whatsapp"] or "",
-        parcel_number=user["parcel_number"],
-        accommodation_name=user["accommodation_name"],
-        address=user["address"],
-        phone=user["phone"],
-        social_reason=user["social_reason"],
-        email=user["email"],
-        category_number=user["category_number"],
-        category_numbers=user["category_numbers"],
-        accommodation_types=user["accommodation_types"],
-        habilitation_number=user["habilitation_number"],
-        nomenclature=user["nomenclature"],
-        neighborhood=user["neighborhood"],
-        units=user["units"],
-        places=user["places"],
-        accommodation_type=user["accommodation_type"],
-        temporary_leave_start=user["temporary_leave_start"],
-        temporary_leave_end=user["temporary_leave_end"],
-    )
+    return establishment_summary(user)
 
 
 @app.put("/admin/establishments/{establishment_id}", response_model=EstablishmentSummary)
@@ -170,28 +165,7 @@ async def edit_establishment(
     user = await update_establishment(establishment_id, payload)
     if not user:
         raise HTTPException(status_code=404, detail="Establishment not found")
-    return EstablishmentSummary(
-        id=user["id"],
-        establishment_name=user["establishment_name"] or user["display_name"],
-        whatsapp=user["whatsapp"] or "",
-        parcel_number=user["parcel_number"],
-        accommodation_name=user["accommodation_name"],
-        address=user["address"],
-        phone=user["phone"],
-        social_reason=user["social_reason"],
-        email=user["email"],
-        category_number=user["category_number"],
-        category_numbers=user["category_numbers"],
-        accommodation_types=user["accommodation_types"],
-        habilitation_number=user["habilitation_number"],
-        nomenclature=user["nomenclature"],
-        neighborhood=user["neighborhood"],
-        units=user["units"],
-        places=user["places"],
-        accommodation_type=user["accommodation_type"],
-        temporary_leave_start=user["temporary_leave_start"],
-        temporary_leave_end=user["temporary_leave_end"],
-    )
+    return establishment_summary(user)
 
 
 @app.delete("/admin/establishments/{establishment_id}", status_code=204)
@@ -304,7 +278,7 @@ async def stats(
     week_start: date | None = None,
     range_start: date | None = None,
     range_end: date | None = None,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_stats_access),
 ) -> StatsResponse:
     rows = await aggregate_stats(period, year, month, week_start, range_start, range_end)
     type_rows, weeks = await aggregate_type_stats(period, year, month, week_start, range_start, range_end)
@@ -322,5 +296,5 @@ async def stats(
 
 
 @app.get("/admin/stats/availability", response_model=StatsAvailability)
-async def stats_period_availability(_: User = Depends(require_admin)) -> StatsAvailability:
+async def stats_period_availability(_: User = Depends(require_stats_access)) -> StatsAvailability:
     return StatsAvailability(**await stats_availability())
