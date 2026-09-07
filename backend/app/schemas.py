@@ -96,6 +96,7 @@ class CorrectionRequest(BaseModel):
 
 class OccupancyEntryCreate(BaseModel):
     week_start: date
+    occupancy_segment: str = Field(default="general", pattern="^(general|camping|dormis)$")
     occupied_places: int = Field(ge=0)
     occupied_units: int = Field(ge=0)
     notes: str | None = None

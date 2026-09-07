@@ -183,6 +183,7 @@ def serialize_entry(document: dict) -> dict:
         "establishment_id": document["establishment_id"],
         "establishment_name": document["establishment_name"],
         "week_start": document["week_start"].date(),
+        "occupancy_segment": document.get("occupancy_segment", "general"),
         "occupied_places": document["occupied_places"],
         "occupied_units": document["occupied_units"],
         "notes": document.get("notes"),
@@ -210,8 +211,15 @@ def serialize_correction_request(document: dict) -> dict:
 async def ensure_indexes() -> None:
     db = get_database()
     await db.users.create_index([("role", ASCENDING)])
+    await db.occupancy_entries.update_many(
+        {"occupancy_segment": {"$exists": False}},
+        {"$set": {"occupancy_segment": "general"}},
+    )
+    for name, spec in (await db.occupancy_entries.index_information()).items():
+        if spec.get("key") == [("establishment_id", 1), ("week_start", 1)]:
+            await db.occupancy_entries.drop_index(name)
     await db.occupancy_entries.create_index(
-        [("establishment_id", ASCENDING), ("week_start", ASCENDING)],
+        [("establishment_id", ASCENDING), ("week_start", ASCENDING), ("occupancy_segment", ASCENDING)],
         unique=True,
     )
     await db.correction_requests.create_index([("status", ASCENDING), ("created_at", ASCENDING)])
@@ -336,6 +344,7 @@ async def seed_occupancy_from_file() -> None:
     records = json.loads(OCCUPANCY_SEED_FILE.read_text(encoding="utf-8"))
     await db.occupancy_entries.delete_many({})
     for record in records:
+        record.setdefault("occupancy_segment", "general")
         record["week_start"] = iso_to_datetime(record["week_start"])
         record["created_at"] = iso_to_datetime(record.get("created_at"))
         record["updated_at"] = iso_to_datetime(record.get("updated_at"))
@@ -574,6 +583,7 @@ async def upsert_occupancy_entry(establishment_id: str, payload: OccupancyEntryC
             "establishment_id": establishment_id,
             "establishment_name": establishment["establishment_name"],
             "week_start": week_start,
+            "occupancy_segment": payload.occupancy_segment,
             "occupied_places": payload.occupied_places,
             "occupied_units": payload.occupied_units,
             "notes": payload.notes,
@@ -582,11 +592,21 @@ async def upsert_occupancy_entry(establishment_id: str, payload: OccupancyEntryC
         "$setOnInsert": {"created_at": now},
     }
     await db.occupancy_entries.update_one(
-        {"establishment_id": establishment_id, "week_start": week_start},
+        {
+            "establishment_id": establishment_id,
+            "week_start": week_start,
+            "occupancy_segment": payload.occupancy_segment,
+        },
         update,
         upsert=True,
     )
-    document = await db.occupancy_entries.find_one({"establishment_id": establishment_id, "week_start": week_start})
+    document = await db.occupancy_entries.find_one(
+        {
+            "establishment_id": establishment_id,
+            "week_start": week_start,
+            "occupancy_segment": payload.occupancy_segment,
+        }
+    )
     return serialize_entry(document)
 
 
@@ -616,10 +636,14 @@ async def list_entries_between(establishment_id: str, start_date, end_date) -> l
     return [serialize_entry(document) async for document in cursor]
 
 
-async def delete_entry(establishment_id: str, week_start) -> bool:
+async def delete_entry(establishment_id: str, week_start, occupancy_segment: str = "general") -> bool:
     week_start_dt = datetime.combine(week_start, datetime.min.time(), tzinfo=UTC)
     result = await get_database().occupancy_entries.delete_one(
-        {"establishment_id": establishment_id, "week_start": week_start_dt}
+        {
+            "establishment_id": establishment_id,
+            "week_start": week_start_dt,
+            "occupancy_segment": occupancy_segment,
+        }
     )
     return result.deleted_count > 0
 

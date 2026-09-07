@@ -213,11 +213,12 @@ async def save_entry(
 async def remove_entry(
     establishment_id: str,
     week_start: date,
+    occupancy_segment: str = Query("general", pattern="^(general|camping|dormis)$"),
     user: User = Depends(get_current_user),
 ) -> None:
     if user.role != UserRole.ADMIN and user.id != establishment_id:
         raise HTTPException(status_code=403, detail="Cannot delete another establishment entry")
-    deleted = await delete_entry(establishment_id, week_start)
+    deleted = await delete_entry(establishment_id, week_start, occupancy_segment)
     if not deleted:
         raise HTTPException(status_code=404, detail="Entry not found")
 

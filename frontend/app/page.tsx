@@ -91,6 +91,14 @@ const accommodationTypes = [
 
 const chartColors = ["#2457a6", "#d64d3b", "#e3a519", "#1f7a4d", "#e86f2d", "#55606f"];
 
+type OccupancySegment = "general" | "camping" | "dormis";
+
+const occupancySegmentLabels: Record<OccupancySegment, string> = {
+  general: "General",
+  camping: "Camping",
+  dormis: "Dormis",
+};
+
 const monthOptions = [
   { value: 1, label: "Enero" },
   { value: 2, label: "Febrero" },
@@ -237,6 +245,23 @@ function panelTitle(user: User) {
   return user.establishment_name ?? user.display_name;
 }
 
+function occupancySegmentFor(establishment?: User | EstablishmentSummary | null): OccupancySegment {
+  if (!establishment) return "general";
+  const text = [
+    establishment.accommodation_type,
+    ...(establishment.accommodation_types ?? []),
+    establishment.establishment_name,
+    establishment.accommodation_name,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return text.includes("camping") || text.includes("dormi") || establishment.category_numbers?.includes(6) || establishment.category_number === 6
+    ? "camping"
+    : "general";
+}
+
+function hasCampingDormisOptions(establishment?: User | EstablishmentSummary | null) {
+  return occupancySegmentFor(establishment) !== "general";
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [entries, setEntries] = useState<Entry[]>(demoEntries);
@@ -253,6 +278,7 @@ export default function Home() {
   const [selectedProfile, setSelectedProfile] = useState<EstablishmentSummary | null>(null);
   const [selectedProfileEntries, setSelectedProfileEntries] = useState<Entry[]>([]);
   const [weekStart, setWeekStart] = useState(currentWeek);
+  const [occupancySegment, setOccupancySegment] = useState<OccupancySegment>("general");
   const [occupiedPlaces, setOccupiedPlaces] = useState(0);
   const [occupiedUnits, setOccupiedUnits] = useState(0);
   const [notes, setNotes] = useState("");
@@ -289,6 +315,7 @@ export default function Home() {
       setUser(response.user);
       setMessage("Conectado al backend.");
       if (response.user.role === "establishment") {
+        setOccupancySegment(occupancySegmentFor(response.user));
         setEntries(await api.entries(response.user.id, response.user.id));
       }
       if (response.user.role === "admin") {
@@ -372,6 +399,7 @@ export default function Home() {
     if (!user) return;
     const payload = {
       week_start: weekStart,
+      occupancy_segment: occupancySegment,
       occupied_places: occupiedPlaces,
       occupied_units: occupiedUnits,
       notes,
@@ -379,7 +407,12 @@ export default function Home() {
 
     try {
       const saved = await api.saveEntry(user.id, user.id, payload);
-      setEntries((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      setEntries((current) => [
+        saved,
+        ...current.filter((entry) =>
+          entry.week_start !== saved.week_start || (entry.occupancy_segment ?? "general") !== (saved.occupancy_segment ?? "general"),
+        ),
+      ]);
       setMessage("Carga guardada.");
     } catch {
       const localEntry: Entry = {
@@ -387,25 +420,29 @@ export default function Home() {
         establishment_id: user.id,
         establishment_name: user.establishment_name ?? user.display_name,
         week_start: weekStart,
+        occupancy_segment: occupancySegment,
         occupied_places: occupiedPlaces,
         occupied_units: occupiedUnits,
         notes,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      setEntries((current) => [localEntry, ...current.filter((entry) => entry.id !== localEntry.id)]);
+      setEntries((current) => [
+        localEntry,
+        ...current.filter((entry) => entry.week_start !== weekStart || (entry.occupancy_segment ?? "general") !== occupancySegment),
+      ]);
       setMessage("Guardado local demo. Con MongoDB activo se persiste en la API.");
     }
   }
 
-  async function deleteEntry(weekStartToDelete: string) {
+  async function deleteEntry(weekStartToDelete: string, segmentToDelete: OccupancySegment = "general") {
     if (!user) return;
     try {
-      await api.deleteEntry(user.id, user.id, weekStartToDelete);
-      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete));
+      await api.deleteEntry(user.id, user.id, weekStartToDelete, segmentToDelete);
+      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete || (entry.occupancy_segment ?? "general") !== segmentToDelete));
       setMessage("Carga eliminada.");
     } catch {
-      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete));
+      setEntries((current) => current.filter((entry) => entry.week_start !== weekStartToDelete || (entry.occupancy_segment ?? "general") !== segmentToDelete));
       setMessage("Carga eliminada en modo demo.");
     }
   }
@@ -839,16 +876,19 @@ export default function Home() {
           establishment={user}
           entries={ownEntries}
           weekStart={weekStart}
+          occupancySegment={occupancySegment}
           occupiedPlaces={occupiedPlaces}
           occupiedUnits={occupiedUnits}
           notes={notes}
           onWeekChange={setWeekStart}
+          onOccupancySegmentChange={setOccupancySegment}
           onPlacesChange={setOccupiedPlaces}
           onUnitsChange={setOccupiedUnits}
           onNotesChange={setNotes}
           onSave={saveEntry}
           onSelectEmptyDate={(date) => {
             setWeekStart(date);
+            setOccupancySegment(occupancySegmentFor(user));
             setOccupiedPlaces(0);
             setOccupiedUnits(0);
             setNotes("");
@@ -856,6 +896,7 @@ export default function Home() {
           }}
           onEdit={(entry) => {
             setWeekStart(entry.week_start);
+            setOccupancySegment(entry.occupancy_segment ?? "general");
             setOccupiedPlaces(entry.occupied_places);
             setOccupiedUnits(entry.occupied_units);
             setNotes(entry.notes ?? "");
@@ -873,17 +914,19 @@ function EstablishmentPanel(props: {
   establishment: User;
   entries: Entry[];
   weekStart: string;
+  occupancySegment: OccupancySegment;
   occupiedPlaces: number;
   occupiedUnits: number;
   notes: string;
   onWeekChange: (value: string) => void;
+  onOccupancySegmentChange: (value: OccupancySegment) => void;
   onPlacesChange: (value: number) => void;
   onUnitsChange: (value: number) => void;
   onNotesChange: (value: string) => void;
   onSave: () => void;
   onSelectEmptyDate: (date: string) => void;
   onEdit: (entry: Entry) => void;
-  onDelete: (weekStart: string) => void;
+  onDelete: (weekStart: string, occupancySegment: OccupancySegment) => void;
   onCreateCorrectionRequest: (payload: CorrectionRequestPayload) => void;
 }) {
   const correctionFields = [
@@ -905,9 +948,16 @@ function EstablishmentPanel(props: {
   const hasCurrentWeek = props.entries.some((entry) => entry.week_start === props.weekStart);
   const loadStatus = hasCurrentWeek ? "Carga completa para el dia seleccionado" : "Falta cargar este dia";
   const entriesByDate = useMemo(
-    () => new Map(props.entries.map((entry) => [entry.week_start, entry])),
+    () => props.entries.reduce((map, entry) => {
+      const dayEntries = map.get(entry.week_start) ?? [];
+      map.set(entry.week_start, [...dayEntries, entry]);
+      return map;
+    }, new Map<string, Entry[]>()),
     [props.entries],
   );
+  const segmentOptions: OccupancySegment[] = hasCampingDormisOptions(props.establishment)
+    ? ["camping", "dormis"]
+    : ["general"];
   const calendarDays = useMemo(() => calendarDaysFor(props.weekStart), [props.weekStart]);
   const availablePlaces = typeof props.establishment.places === "number"
     ? Math.max(props.establishment.places - props.occupiedPlaces, 0)
@@ -926,6 +976,38 @@ function EstablishmentPanel(props: {
     });
     setCorrectionValue("");
     setCorrectionNotes("");
+  }
+
+  function selectOccupancySegment(segment: OccupancySegment) {
+    props.onOccupancySegmentChange(segment);
+    const matchingEntry = props.entries.find(
+      (entry) => entry.week_start === props.weekStart && (entry.occupancy_segment ?? "general") === segment,
+    );
+    if (!matchingEntry) {
+      props.onPlacesChange(0);
+      props.onUnitsChange(0);
+      props.onNotesChange("");
+      return;
+    }
+    props.onPlacesChange(matchingEntry.occupied_places);
+    props.onUnitsChange(matchingEntry.occupied_units);
+    props.onNotesChange(matchingEntry.notes ?? "");
+  }
+
+  function selectWeekStart(value: string) {
+    props.onWeekChange(value);
+    const matchingEntry = props.entries.find(
+      (entry) => entry.week_start === value && (entry.occupancy_segment ?? "general") === props.occupancySegment,
+    );
+    if (!matchingEntry) {
+      props.onPlacesChange(0);
+      props.onUnitsChange(0);
+      props.onNotesChange("");
+      return;
+    }
+    props.onPlacesChange(matchingEntry.occupied_places);
+    props.onUnitsChange(matchingEntry.occupied_units);
+    props.onNotesChange(matchingEntry.notes ?? "");
   }
 
   return (
@@ -997,7 +1079,7 @@ function EstablishmentPanel(props: {
           </div>
           <label>
             Dia
-            <input type="date" value={props.weekStart} onChange={(event) => props.onWeekChange(event.target.value)} />
+            <input type="date" value={props.weekStart} onChange={(event) => selectWeekStart(event.target.value)} />
           </label>
           <div className="calendar-card">
             <div className="calendar-header">
@@ -1012,7 +1094,10 @@ function EstablishmentPanel(props: {
                 if (!date) {
                   return <span className="calendar-empty" key={`empty-${index}`} />;
                 }
-                const entry = entriesByDate.get(date);
+                const dayEntries = entriesByDate.get(date) ?? [];
+                const entry = dayEntries.find((candidate) => (candidate.occupancy_segment ?? "general") === props.occupancySegment);
+                const dayPlaces = dayEntries.reduce((sum, candidate) => sum + candidate.occupied_places, 0);
+                const dayUnits = dayEntries.reduce((sum, candidate) => sum + candidate.occupied_units, 0);
                 const isSelected = date === props.weekStart;
                 return (
                   <button
@@ -1027,13 +1112,23 @@ function EstablishmentPanel(props: {
                     onClick={() => entry ? props.onEdit(entry) : props.onSelectEmptyDate(date)}
                   >
                     <span>{parseDateInput(date).getDate()}</span>
-                    {entry ? <small>{entry.occupied_places}p / {entry.occupied_units}u</small> : <small>Pendiente</small>}
+                    {dayEntries.length ? <small>{dayPlaces}p / {dayUnits}u</small> : <small>Pendiente</small>}
                   </button>
                 );
               })}
             </div>
           </div>
           <div className="field-grid">
+            {segmentOptions.length > 1 ? (
+              <label>
+                Tipo de carga
+                <select value={props.occupancySegment} onChange={(event) => selectOccupancySegment(event.target.value as OccupancySegment)}>
+                  {segmentOptions.map((segment) => (
+                    <option key={segment} value={segment}>{occupancySegmentLabels[segment]}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label>
               Plazas ocupadas
               <input
@@ -1089,6 +1184,7 @@ function EstablishmentPanel(props: {
           <div className="table">
             <div className="table-row table-head">
               <span>Dia</span>
+              <span>Tipo</span>
               <span>Plazas</span>
               <span>Unidades</span>
               <span></span>
@@ -1096,13 +1192,14 @@ function EstablishmentPanel(props: {
             {props.entries.map((entry) => (
               <div className="table-row" key={entry.id}>
                 <span>{entry.week_start}</span>
+                <span>{occupancySegmentLabels[(entry.occupancy_segment ?? "general") as OccupancySegment]}</span>
                 <strong>{entry.occupied_places}</strong>
                 <strong>{entry.occupied_units}</strong>
                 <span className="row-actions">
                   <button className="icon-button compact-icon" type="button" title="Editar carga" onClick={() => props.onEdit(entry)}>
                     <Pencil size={16} />
                   </button>
-                  <button className="icon-button compact-icon danger-icon" type="button" title="Eliminar carga" onClick={() => props.onDelete(entry.week_start)}>
+                  <button className="icon-button compact-icon danger-icon" type="button" title="Eliminar carga" onClick={() => props.onDelete(entry.week_start, (entry.occupancy_segment ?? "general") as OccupancySegment)}>
                     <Trash2 size={16} />
                   </button>
                 </span>
@@ -1628,12 +1725,14 @@ function AdminPanel(props: {
           <div className="table profile-entries-scroll">
             <div className="table-row table-head">
               <span>Dia</span>
+              <span>Tipo</span>
               <span>Plazas</span>
               <span>Unidades</span>
             </div>
             {props.selectedProfileEntries.map((entry) => (
               <div className="table-row profile-entry-row" key={entry.id}>
                 <span>{entry.week_start}</span>
+                <span>{occupancySegmentLabels[(entry.occupancy_segment ?? "general") as OccupancySegment]}</span>
                 <strong>{entry.occupied_places}</strong>
                 <strong>{entry.occupied_units}</strong>
               </div>

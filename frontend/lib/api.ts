@@ -32,6 +32,7 @@ export type Entry = {
   establishment_id: string;
   establishment_name: string;
   week_start: string;
+  occupancy_segment?: "general" | "camping" | "dormis";
   occupied_places: number;
   occupied_units: number;
   notes?: string;
@@ -189,6 +190,7 @@ export const api = {
     request<Entry[]>(`/establishments/${establishmentId}/entries?userId=${userId}`),
   saveEntry: (userId: string, establishmentId: string, payload: {
     week_start: string;
+    occupancy_segment?: "general" | "camping" | "dormis";
     occupied_places: number;
     occupied_units: number;
     notes?: string;
@@ -234,10 +236,13 @@ export const api = {
     request<void>(`/admin/establishments/${establishmentId}?userId=${userId}`, {
       method: "DELETE",
     }),
-  deleteEntry: (userId: string, establishmentId: string, weekStart: string) =>
-    request<void>(`/establishments/${establishmentId}/entries/${weekStart}?userId=${userId}`, {
+  deleteEntry: (userId: string, establishmentId: string, weekStart: string, occupancySegment = "general") =>
+    request<void>(
+      `/establishments/${establishmentId}/entries/${weekStart}?userId=${userId}&occupancy_segment=${occupancySegment}`,
+      {
       method: "DELETE",
-    }),
+      },
+    ),
   createCorrectionRequest: (userId: string, establishmentId: string, payload: CorrectionRequestPayload) =>
     request<CorrectionRequest>(`/establishments/${establishmentId}/correction-requests?userId=${userId}`, {
       method: "POST",
@@ -298,6 +303,7 @@ export const demoEntries: Entry[] = [
     establishment_id: "10000001",
     establishment_name: "Hotel Sol",
     week_start: "2026-05-18",
+    occupancy_segment: "general",
     occupied_places: 38,
     occupied_units: 14,
     created_at: "2026-05-18T10:00:00Z",
@@ -308,6 +314,7 @@ export const demoEntries: Entry[] = [
     establishment_id: "10000001",
     establishment_name: "Hotel Sol",
     week_start: "2026-05-25",
+    occupancy_segment: "general",
     occupied_places: 42,
     occupied_units: 16,
     created_at: "2026-05-25T10:00:00Z",

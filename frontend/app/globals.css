@@ -1553,7 +1553,7 @@ form {
 }
 
 .workspace-grid .table-row {
-  grid-template-columns: 1.2fr 0.6fr 0.6fr 96px;
+  grid-template-columns: 1.1fr 0.7fr 0.6fr 0.6fr 96px;
 }
 
 .establishment-table .table-row {
@@ -2041,7 +2041,7 @@ button.table-row {
 }
 
 .profile-entry-row {
-  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+  grid-template-columns: 1.3fr 0.8fr 0.8fr 0.8fr;
 }
 
 .profile-entries-scroll {
@@ -2225,6 +2225,15 @@ button.table-row {
   .table-row {
     grid-template-columns: 1fr 0.6fr 0.6fr 0.6fr;
     font-size: 14px;
+  }
+
+  .workspace-grid .table-row,
+  .profile-entry-row {
+    grid-template-columns: 1fr 0.7fr 0.6fr 0.6fr 64px;
+  }
+
+  .profile-entry-row {
+    grid-template-columns: 1fr 0.7fr 0.6fr 0.6fr;
   }
 
   .panel-header {
