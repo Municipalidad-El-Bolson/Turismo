@@ -70,6 +70,30 @@ class EstablishmentUpdate(BaseModel):
     temporary_leave_end: date | None = None
 
 
+class CorrectionRequestCreate(BaseModel):
+    field_name: str = Field(min_length=2, max_length=80)
+    requested_value: str = Field(min_length=1, max_length=300)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class CorrectionReview(BaseModel):
+    status: str = Field(pattern="^(approved|rejected)$")
+
+
+class CorrectionRequest(BaseModel):
+    id: str
+    establishment_id: str
+    establishment_name: str
+    field_name: str
+    field_label: str
+    current_value: str | None = None
+    requested_value: str
+    notes: str | None = None
+    status: str
+    created_at: datetime
+    reviewed_at: datetime | None = None
+
+
 class OccupancyEntryCreate(BaseModel):
     week_start: date
     occupied_places: int = Field(ge=0)

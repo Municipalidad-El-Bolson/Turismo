@@ -129,6 +129,26 @@ export type EstablishmentPayload = {
   temporary_leave_end?: string;
 };
 
+export type CorrectionRequest = {
+  id: string;
+  establishment_id: string;
+  establishment_name: string;
+  field_name: string;
+  field_label: string;
+  current_value?: string;
+  requested_value: string;
+  notes?: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  reviewed_at?: string;
+};
+
+export type CorrectionRequestPayload = {
+  field_name: string;
+  requested_value: string;
+  notes?: string;
+};
+
 function apiUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window === "undefined") {
@@ -217,6 +237,18 @@ export const api = {
   deleteEntry: (userId: string, establishmentId: string, weekStart: string) =>
     request<void>(`/establishments/${establishmentId}/entries/${weekStart}?userId=${userId}`, {
       method: "DELETE",
+    }),
+  createCorrectionRequest: (userId: string, establishmentId: string, payload: CorrectionRequestPayload) =>
+    request<CorrectionRequest>(`/establishments/${establishmentId}/correction-requests?userId=${userId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  correctionRequests: (userId: string, status = "pending") =>
+    request<CorrectionRequest[]>(`/admin/correction-requests?userId=${userId}&status=${status}`),
+  reviewCorrectionRequest: (userId: string, requestId: string, status: "approved" | "rejected") =>
+    request<CorrectionRequest>(`/admin/correction-requests/${requestId}/review?userId=${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
     }),
 };
 

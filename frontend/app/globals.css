@@ -487,7 +487,7 @@ h2 {
 
 .admin-command-center {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -1284,6 +1284,124 @@ form {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
+.merchant-profile-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.merchant-data-grid {
+  margin-top: 0;
+}
+
+.correction-request-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  border: 1px solid #d9e8da;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff, #f7fbf6);
+  padding: 14px;
+}
+
+.correction-request-form > div,
+.correction-request-form label:last-of-type {
+  grid-column: 1 / -1;
+}
+
+.correction-request-form > div {
+  display: grid;
+  gap: 4px;
+}
+
+.correction-request-form > div strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.correction-request-form > div small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.correction-panel,
+.correction-list {
+  display: grid;
+  gap: 12px;
+}
+
+.correction-list {
+  max-height: 720px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.correction-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  border: 1px solid #d9e8da;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff, #fbfefa);
+  padding: 14px;
+  box-shadow: 0 10px 26px rgba(25, 55, 36, 0.07);
+}
+
+.correction-item-main,
+.correction-values {
+  display: grid;
+  gap: 8px;
+}
+
+.correction-item-main strong {
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.correction-item-main span,
+.correction-values small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.correction-values {
+  grid-template-columns: 90px minmax(0, 1fr);
+  align-items: start;
+}
+
+.correction-values p,
+.correction-note {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.correction-note {
+  border-radius: 12px;
+  background: #f2f7f2;
+  color: var(--muted);
+  padding: 10px;
+}
+
+.correction-actions {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.empty-list-state {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 180px;
+  border: 1px dashed #c9dfce;
+  border-radius: 16px;
+  color: #16824f;
+  text-align: center;
+}
+
 .calendar-header {
   display: flex;
   align-items: baseline;
@@ -2034,6 +2152,8 @@ button.table-row {
   .assisted-communication-body,
   .assisted-form-grid,
   .assisted-preview-row,
+  .correction-request-form,
+  .correction-item,
   .establishment-form {
     grid-template-columns: 1fr;
   }

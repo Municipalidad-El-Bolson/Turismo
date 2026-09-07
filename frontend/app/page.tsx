@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import {
   Compliance,
+  CorrectionRequest,
+  CorrectionRequestPayload,
   Entry,
   EstablishmentSummary,
   EstablishmentPayload,
@@ -242,6 +244,7 @@ export default function Home() {
   const [stats, setStats] = useState<StatsResponse>(demoStats);
   const [statsAvailability, setStatsAvailability] = useState<StatsAvailability>(demoStatsAvailability);
   const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
+  const [correctionRequests, setCorrectionRequests] = useState<CorrectionRequest[]>([]);
   const [lastCreatedId, setLastCreatedId] = useState("");
   const [loginId, setLoginId] = useState("");
   const [adminUsername, setAdminUsername] = useState("");
@@ -412,14 +415,16 @@ export default function Home() {
       const statsAvailabilityResponse = await api.statsAvailability(userId);
       const { nextStatsYear, nextStatsMonth } = resolveAvailableStatsPeriod(statsAvailabilityResponse);
 
-      const [complianceResponse, statsResponse, establishmentsResponse] = await Promise.all([
+      const [complianceResponse, statsResponse, establishmentsResponse, correctionRequestsResponse] = await Promise.all([
         api.compliance(userId, weekStart, compliancePeriod),
         api.stats(userId, period, nextStatsYear, nextStatsMonth, statsWeekStart, statsRangeStart, statsRangeEnd),
         api.establishments(userId),
+        api.correctionRequests(userId),
       ]);
       setCompliance(complianceResponse);
       setStats(statsResponse);
       setEstablishments(establishmentsResponse);
+      setCorrectionRequests(correctionRequestsResponse);
       setStatsAvailability(statsAvailabilityResponse);
       if (nextStatsYear !== statsYear) setStatsYear(nextStatsYear);
       if (nextStatsMonth !== statsMonth) setStatsMonth(nextStatsMonth);
@@ -429,6 +434,7 @@ export default function Home() {
       setStats(demoStats);
       setStatsAvailability(demoStatsAvailability);
       setEstablishments(demoEstablishments);
+      setCorrectionRequests([]);
       setMessage("Backend no disponible: panel admin en modo demo.");
     }
   }
@@ -483,6 +489,38 @@ export default function Home() {
     } catch {
       setCompliance(demoCompliance);
       setMessage("Backend no disponible: cumplimiento demo.");
+    }
+  }
+
+  async function loadCorrectionRequests(userId = user?.id ?? "meb-admin") {
+    try {
+      setCorrectionRequests(await api.correctionRequests(userId));
+      setMessage("Solicitudes de correccion actualizadas.");
+    } catch {
+      setCorrectionRequests([]);
+      setMessage("No se pudieron cargar las solicitudes de correccion.");
+    }
+  }
+
+  async function createCorrectionRequest(payload: CorrectionRequestPayload) {
+    if (!user) return;
+    try {
+      await api.createCorrectionRequest(user.id, user.id, payload);
+      setMessage("Alerta de correccion enviada. Queda pendiente de autorizacion.");
+    } catch {
+      setMessage("No se pudo enviar la alerta de correccion.");
+    }
+  }
+
+  async function reviewCorrectionRequest(requestId: string, status: "approved" | "rejected") {
+    if (!user) return;
+    try {
+      const reviewed = await api.reviewCorrectionRequest(user.id, requestId, status);
+      setCorrectionRequests((current) => current.filter((request) => request.id !== reviewed.id));
+      setMessage(status === "approved" ? "Correccion aprobada y aplicada." : "Correccion rechazada.");
+      await loadAdminData(user.id);
+    } catch {
+      setMessage("No se pudo revisar la solicitud de correccion.");
     }
   }
 
@@ -712,6 +750,7 @@ export default function Home() {
         <AdminPanel
           accessRole="admin"
           compliance={compliance}
+          correctionRequests={correctionRequests}
           stats={stats}
           statsAvailability={statsAvailability}
           period={period}
@@ -732,6 +771,7 @@ export default function Home() {
           onStatsRangeEndChange={setStatsRangeEnd}
           onRefreshStats={() => loadStatsData()}
           onRefreshCompliance={() => loadComplianceData()}
+          onRefreshCorrections={() => loadCorrectionRequests()}
           establishments={establishments}
           lastCreatedId={lastCreatedId}
           selectedProfile={selectedProfile}
@@ -743,6 +783,7 @@ export default function Home() {
           onOpenCompliance={openComplianceProfile}
           onSendReminder={sendReminder}
           onSendMissingReminders={sendMissingReminders}
+          onReviewCorrectionRequest={reviewCorrectionRequest}
           onCloseProfile={() => {
             setSelectedProfile(null);
             setSelectedProfileEntries([]);
@@ -752,6 +793,7 @@ export default function Home() {
         <AdminPanel
           accessRole="marketing"
           compliance={[]}
+          correctionRequests={[]}
           stats={stats}
           statsAvailability={statsAvailability}
           period={period}
@@ -772,6 +814,7 @@ export default function Home() {
           onStatsRangeEndChange={setStatsRangeEnd}
           onRefreshStats={() => loadStatsData()}
           onRefreshCompliance={() => undefined}
+          onRefreshCorrections={() => undefined}
           establishments={[]}
           lastCreatedId={lastCreatedId}
           selectedProfile={null}
@@ -783,6 +826,7 @@ export default function Home() {
           onOpenCompliance={() => undefined}
           onSendReminder={() => undefined}
           onSendMissingReminders={() => undefined}
+          onReviewCorrectionRequest={() => undefined}
           onCloseProfile={() => undefined}
         />
       ) : isTourism ? (
@@ -818,6 +862,7 @@ export default function Home() {
             setMessage("Carga lista para editar.");
           }}
           onDelete={deleteEntry}
+          onCreateCorrectionRequest={createCorrectionRequest}
         />
       )}
     </main>
@@ -839,7 +884,24 @@ function EstablishmentPanel(props: {
   onSelectEmptyDate: (date: string) => void;
   onEdit: (entry: Entry) => void;
   onDelete: (weekStart: string) => void;
+  onCreateCorrectionRequest: (payload: CorrectionRequestPayload) => void;
 }) {
+  const correctionFields = [
+    { value: "accommodation_name", label: "Nombre de alojamiento", current: props.establishment.accommodation_name ?? props.establishment.establishment_name },
+    { value: "social_reason", label: "Razon social", current: props.establishment.social_reason },
+    { value: "address", label: "Direccion", current: props.establishment.address },
+    { value: "phone", label: "Telefono", current: props.establishment.phone ?? props.establishment.whatsapp },
+    { value: "email", label: "Correo", current: props.establishment.email },
+    { value: "habilitation_number", label: "Nro. de habilitacion", current: props.establishment.habilitation_number },
+    { value: "nomenclature", label: "Nomenclatura", current: props.establishment.nomenclature },
+    { value: "neighborhood", label: "Barrio", current: props.establishment.neighborhood },
+    { value: "units", label: "Unidades habilitadas", current: formatOptionalNumber(props.establishment.units) },
+    { value: "places", label: "Plazas habilitadas", current: formatOptionalNumber(props.establishment.places) },
+    { value: "accommodation_type", label: "Tipo de alojamiento", current: props.establishment.accommodation_type },
+  ];
+  const [correctionField, setCorrectionField] = useState(correctionFields[0].value);
+  const [correctionValue, setCorrectionValue] = useState("");
+  const [correctionNotes, setCorrectionNotes] = useState("");
   const hasCurrentWeek = props.entries.some((entry) => entry.week_start === props.weekStart);
   const loadStatus = hasCurrentWeek ? "Carga completa para el dia seleccionado" : "Falta cargar este dia";
   const entriesByDate = useMemo(
@@ -853,6 +915,18 @@ function EstablishmentPanel(props: {
   const availableUnits = typeof props.establishment.units === "number"
     ? Math.max(props.establishment.units - props.occupiedUnits, 0)
     : undefined;
+  const selectedCorrectionField = correctionFields.find((field) => field.value === correctionField) ?? correctionFields[0];
+
+  function submitCorrectionRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    props.onCreateCorrectionRequest({
+      field_name: correctionField,
+      requested_value: correctionValue.trim(),
+      notes: correctionNotes.trim(),
+    });
+    setCorrectionValue("");
+    setCorrectionNotes("");
+  }
 
   return (
     <>
@@ -861,6 +935,58 @@ function EstablishmentPanel(props: {
           {hasCurrentWeek ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           <span>{loadStatus}</span>
         </div>
+      </section>
+
+      <section className="panel merchant-profile-panel">
+        <div className="panel-header">
+          <div className="panel-title">
+            <Building2 size={21} />
+            <h2>Mis datos del establecimiento</h2>
+          </div>
+          <span className="count-badge">ID {props.establishment.id}</span>
+        </div>
+        <div className="profile-grid merchant-data-grid">
+          <ProfileField label="Nombre de alojamiento" value={props.establishment.accommodation_name ?? props.establishment.establishment_name} />
+          <ProfileField label="Razon social" value={props.establishment.social_reason} />
+          <ProfileField label="Direccion" value={props.establishment.address} />
+          <ProfileField label="Telefono" value={props.establishment.phone ?? props.establishment.whatsapp} />
+          <ProfileField label="Correo" value={props.establishment.email} />
+          <ProfileField label="Tipo de alojamiento" value={props.establishment.accommodation_type} />
+          <ProfileField label="Nro. de categoria" value={props.establishment.category_numbers?.join(", ") ?? props.establishment.category_number?.toString()} />
+          <ProfileField label="Nro. de habilitacion" value={props.establishment.habilitation_number} />
+          <ProfileField label="Nomenclatura" value={props.establishment.nomenclature} />
+          <ProfileField label="Barrio" value={props.establishment.neighborhood} />
+          <ProfileField label="Unidades habilitadas" value={formatOptionalNumber(props.establishment.units)} />
+          <ProfileField label="Plazas habilitadas" value={formatOptionalNumber(props.establishment.places)} />
+        </div>
+        <form className="correction-request-form" onSubmit={submitCorrectionRequest}>
+          <div>
+            <strong>Alerta de correccion</strong>
+            <small>La solicitud queda pendiente hasta que un usuario admin la autorice.</small>
+          </div>
+          <label>
+            Dato a corregir
+            <select value={correctionField} onChange={(event) => setCorrectionField(event.target.value)}>
+              {correctionFields.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}
+            </select>
+          </label>
+          <label>
+            Valor actual
+            <input value={selectedCorrectionField.current ?? "Sin dato cargado"} disabled />
+          </label>
+          <label>
+            Dato correcto
+            <input value={correctionValue} onChange={(event) => setCorrectionValue(event.target.value)} required />
+          </label>
+          <label>
+            Comentario
+            <textarea value={correctionNotes} onChange={(event) => setCorrectionNotes(event.target.value)} placeholder="Ej.: cambio de telefono, direccion mal escrita, unidades actualizadas" />
+          </label>
+          <button className="secondary-button inline-button" type="submit">
+            <AlertTriangle size={17} />
+            <span>Enviar alerta</span>
+          </button>
+        </form>
       </section>
 
       <section className="workspace-grid">
@@ -1099,6 +1225,7 @@ function TourismPanel(props: {
 function AdminPanel(props: {
   accessRole: "admin" | "marketing";
   compliance: Compliance[];
+  correctionRequests: CorrectionRequest[];
   stats: StatsResponse;
   statsAvailability: StatsAvailability;
   period: string;
@@ -1119,6 +1246,7 @@ function AdminPanel(props: {
   onStatsRangeEndChange: (value: string) => void;
   onRefreshStats: () => void;
   onRefreshCompliance: () => void;
+  onRefreshCorrections: () => void;
   establishments: EstablishmentSummary[];
   lastCreatedId: string;
   selectedProfile: EstablishmentSummary | null;
@@ -1130,6 +1258,7 @@ function AdminPanel(props: {
   onOpenCompliance: (item: Compliance) => void;
   onSendReminder: (establishmentId: string) => void;
   onSendMissingReminders: () => void;
+  onReviewCorrectionRequest: (requestId: string, status: "approved" | "rejected") => void;
   onCloseProfile: () => void;
 }) {
   const canManage = props.accessRole === "admin";
@@ -1162,7 +1291,7 @@ function AdminPanel(props: {
   const [groupCopyStatus, setGroupCopyStatus] = useState("");
   const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
   const [communicationDetail, setCommunicationDetail] = useState("");
-  const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance">("dashboard");
+  const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance" | "corrections">("dashboard");
 
   const filteredEstablishments = useMemo(() => {
     const query = establishmentSearch.trim().toLowerCase();
@@ -1696,6 +1825,11 @@ function AdminPanel(props: {
           <span>Cumplimiento</span>
           <small>{pendingCompliance} pendientes</small>
         </button>
+        <button className={adminView === "corrections" ? "command-button active" : "command-button"} type="button" onClick={() => setAdminView("corrections")}>
+          <AlertTriangle size={22} />
+          <span>Correcciones</span>
+          <small>{props.correctionRequests.length} pendientes</small>
+        </button>
       </section>
       ) : null}
 
@@ -1914,6 +2048,57 @@ function AdminPanel(props: {
               </button>
             </div>
           ))}
+        </div>
+      </section>
+      ) : null}
+
+      {canManage && adminView === "corrections" ? (
+      <section className="panel correction-panel dashboard-section-panel">
+        <div className="panel-header">
+          <div className="panel-title">
+            <AlertTriangle size={21} />
+            <h2>Alertas de correccion</h2>
+          </div>
+          <div className="metric-strip">
+            <span className="count-badge">{props.correctionRequests.length} pendientes</span>
+            <button className="secondary-button inline-button" type="button" onClick={props.onRefreshCorrections}>
+              Actualizar
+            </button>
+          </div>
+        </div>
+        <div className="correction-list">
+          {props.correctionRequests.length ? props.correctionRequests.map((request) => (
+            <article className="correction-item" key={request.id}>
+              <div className="correction-item-main">
+                <div>
+                  <strong>{request.establishment_name}</strong>
+                  <span>{request.field_label}</span>
+                </div>
+                <div className="correction-values">
+                  <small>Actual</small>
+                  <p>{request.current_value || "Sin dato cargado"}</p>
+                  <small>Solicitado</small>
+                  <p>{request.requested_value}</p>
+                </div>
+                {request.notes ? <p className="correction-note">{request.notes}</p> : null}
+              </div>
+              <div className="correction-actions">
+                <button className="primary-button inline-button" type="button" onClick={() => props.onReviewCorrectionRequest(request.id, "approved")}>
+                  <CheckCircle2 size={17} />
+                  <span>Aprobar</span>
+                </button>
+                <button className="secondary-button inline-button danger-button" type="button" onClick={() => props.onReviewCorrectionRequest(request.id, "rejected")}>
+                  <X size={17} />
+                  <span>Rechazar</span>
+                </button>
+              </div>
+            </article>
+          )) : (
+            <div className="empty-list-state">
+              <CheckCircle2 size={24} />
+              <strong>No hay correcciones pendientes</strong>
+            </div>
+          )}
         </div>
       </section>
       ) : null}

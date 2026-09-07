@@ -9,6 +9,7 @@ from .database import close_database, connect_database
 from .repositories import (
     aggregate_stats,
     aggregate_type_stats,
+    create_correction_request,
     create_establishment,
     delete_entry,
     delete_establishment,
@@ -17,7 +18,9 @@ from .repositories import (
     find_user,
     list_entries,
     list_entries_between,
+    list_correction_requests,
     list_establishments,
+    review_correction_request,
     seed_demo_data,
     serialize_user,
     stats_availability,
@@ -26,6 +29,9 @@ from .repositories import (
 )
 from .schemas import (
     ComplianceStatus,
+    CorrectionRequest,
+    CorrectionRequestCreate,
+    CorrectionReview,
     EstablishmentCreate,
     EstablishmentSummary,
     EstablishmentUpdate,
@@ -214,6 +220,41 @@ async def remove_entry(
     deleted = await delete_entry(establishment_id, week_start)
     if not deleted:
         raise HTTPException(status_code=404, detail="Entry not found")
+
+
+@app.post("/establishments/{establishment_id}/correction-requests", response_model=CorrectionRequest, status_code=201)
+async def request_correction(
+    establishment_id: str,
+    payload: CorrectionRequestCreate,
+    user: User = Depends(get_current_user),
+) -> CorrectionRequest:
+    if user.role != UserRole.ESTABLISHMENT or user.id != establishment_id:
+        raise HTTPException(status_code=403, detail="Cannot request corrections for another establishment")
+    try:
+        request = await create_correction_request(establishment_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CorrectionRequest(**request)
+
+
+@app.get("/admin/correction-requests", response_model=list[CorrectionRequest])
+async def correction_requests(
+    status: str | None = Query(None, pattern="^(pending|approved|rejected)$"),
+    _: User = Depends(require_admin),
+) -> list[CorrectionRequest]:
+    return [CorrectionRequest(**request) for request in await list_correction_requests(status)]
+
+
+@app.post("/admin/correction-requests/{request_id}/review", response_model=CorrectionRequest)
+async def review_correction(
+    request_id: str,
+    payload: CorrectionReview,
+    _: User = Depends(require_admin),
+) -> CorrectionRequest:
+    request = await review_correction_request(request_id, payload.status)
+    if not request:
+        raise HTTPException(status_code=404, detail="Correction request not found")
+    return CorrectionRequest(**request)
 
 
 @app.get("/admin/compliance", response_model=list[ComplianceStatus])

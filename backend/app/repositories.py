@@ -8,10 +8,24 @@ from pymongo import ASCENDING
 from pymongo.errors import DuplicateKeyError
 
 from .database import get_database
-from .schemas import EstablishmentCreate, EstablishmentUpdate, OccupancyEntryCreate, UserRole
+from .schemas import CorrectionRequestCreate, EstablishmentCreate, EstablishmentUpdate, OccupancyEntryCreate, UserRole
 
 SEED_FILE = Path(__file__).with_name("establishments_seed.json")
 OCCUPANCY_SEED_FILE = Path(__file__).with_name("occupancy_seed.json")
+
+CORRECTION_FIELDS = {
+    "accommodation_name": "Nombre de alojamiento",
+    "social_reason": "Razon social",
+    "address": "Direccion",
+    "phone": "Telefono",
+    "email": "Correo",
+    "habilitation_number": "Nro. de habilitacion",
+    "nomenclature": "Nomenclatura",
+    "neighborhood": "Barrio",
+    "units": "Unidades habilitadas",
+    "places": "Plazas habilitadas",
+    "accommodation_type": "Tipo de alojamiento",
+}
 
 
 def infer_accommodation_type(name: str | None) -> str:
@@ -177,6 +191,22 @@ def serialize_entry(document: dict) -> dict:
     }
 
 
+def serialize_correction_request(document: dict) -> dict:
+    return {
+        "id": str(document["_id"]),
+        "establishment_id": document["establishment_id"],
+        "establishment_name": document["establishment_name"],
+        "field_name": document["field_name"],
+        "field_label": document["field_label"],
+        "current_value": document.get("current_value"),
+        "requested_value": document["requested_value"],
+        "notes": document.get("notes"),
+        "status": document["status"],
+        "created_at": document["created_at"],
+        "reviewed_at": document.get("reviewed_at"),
+    }
+
+
 async def ensure_indexes() -> None:
     db = get_database()
     await db.users.create_index([("role", ASCENDING)])
@@ -184,6 +214,8 @@ async def ensure_indexes() -> None:
         [("establishment_id", ASCENDING), ("week_start", ASCENDING)],
         unique=True,
     )
+    await db.correction_requests.create_index([("status", ASCENDING), ("created_at", ASCENDING)])
+    await db.correction_requests.create_index([("establishment_id", ASCENDING), ("created_at", ASCENDING)])
 
 
 async def seed_demo_data() -> None:
@@ -440,7 +472,93 @@ async def delete_establishment(establishment_id: str) -> bool:
     if result.deleted_count == 0:
         return False
     await get_database().occupancy_entries.delete_many({"establishment_id": establishment_id})
+    await get_database().correction_requests.delete_many({"establishment_id": establishment_id})
     return True
+
+
+async def create_correction_request(establishment_id: str, payload: CorrectionRequestCreate) -> dict:
+    db = get_database()
+    establishment = await find_user(establishment_id)
+    if not establishment or establishment["role"] != UserRole.ESTABLISHMENT:
+        raise ValueError("Establishment user not found")
+    if payload.field_name not in CORRECTION_FIELDS:
+        raise ValueError("Field cannot be corrected from this form")
+    if payload.field_name in {"units", "places"} and not payload.requested_value.strip().isdigit():
+        raise ValueError("Capacity corrections must be numeric")
+
+    now = datetime.now(UTC)
+    current_value = establishment.get(payload.field_name)
+    document = {
+        "establishment_id": establishment_id,
+        "establishment_name": establishment.get("establishment_name") or establishment.get("display_name"),
+        "field_name": payload.field_name,
+        "field_label": CORRECTION_FIELDS[payload.field_name],
+        "current_value": "" if current_value is None else str(current_value),
+        "requested_value": payload.requested_value.strip(),
+        "notes": (payload.notes or "").strip(),
+        "status": "pending",
+        "created_at": now,
+        "reviewed_at": None,
+    }
+    result = await db.correction_requests.insert_one(document)
+    document["_id"] = result.inserted_id
+    return serialize_correction_request(document)
+
+
+async def list_correction_requests(status: str | None = None) -> list[dict]:
+    query = {}
+    if status:
+        query["status"] = status
+    cursor = get_database().correction_requests.find(query).sort("created_at", -1)
+    return [serialize_correction_request(document) async for document in cursor]
+
+
+async def review_correction_request(request_id: str, status: str) -> dict | None:
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+      object_id = ObjectId(request_id)
+    except InvalidId:
+      return None
+
+    db = get_database()
+    request = await db.correction_requests.find_one({"_id": object_id})
+    if not request:
+        return None
+    if request["status"] != "pending":
+        request["reviewed_at"] = request.get("reviewed_at")
+        return serialize_correction_request(request)
+
+    now = datetime.now(UTC)
+    update = {"status": status, "reviewed_at": now}
+    await db.correction_requests.update_one({"_id": object_id}, {"$set": update})
+    request.update(update)
+
+    if status == "approved" and request["field_name"] in CORRECTION_FIELDS:
+        value: str | int | None = request["requested_value"]
+        if request["field_name"] in {"units", "places"}:
+            value = int(value)
+        establishment_update = {request["field_name"]: value}
+        if request["field_name"] == "accommodation_name":
+            establishment_update.update(
+                {
+                    "display_name": request["requested_value"],
+                    "establishment_name": request["requested_value"],
+                }
+            )
+            await db.occupancy_entries.update_many(
+                {"establishment_id": request["establishment_id"]},
+                {"$set": {"establishment_name": request["requested_value"]}},
+            )
+        if request["field_name"] == "phone":
+            establishment_update["whatsapp"] = request["requested_value"]
+        await db.users.update_one(
+            {"_id": request["establishment_id"], "role": UserRole.ESTABLISHMENT},
+            {"$set": establishment_update},
+        )
+
+    return serialize_correction_request(request)
 
 
 async def upsert_occupancy_entry(establishment_id: str, payload: OccupancyEntryCreate) -> dict:
