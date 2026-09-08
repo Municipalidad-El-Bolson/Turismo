@@ -196,9 +196,9 @@ const demoAccesses = [
 ];
 
 const demoEstablishmentAccess = {
-  title: "Emprendimiento demo",
-  description: "Carga de ocupacion",
-  id: "10000001",
+  title: "Camping y dormis demo",
+  description: "Carga por tipo",
+  id: "23713213",
 };
 
 function buildAssistedMessage(template: string, establishmentName: string, detail: string, periodStart: string) {
@@ -800,7 +800,7 @@ export default function Home() {
                   aria-label="ID de emprendimiento"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  placeholder="10000001"
+                  placeholder={demoEstablishmentAccess.id}
                   value={loginId}
                   onChange={(event) => { setLoginId(event.target.value.replace(/\D/g, "")); setLoginError(""); }}
                 />
@@ -2977,9 +2977,9 @@ function parseOptionalNumber(value: string) {
 
 const demoCompliance: Compliance[] = [
   {
-    establishment_id: "10000001",
-    establishment_name: "Hotel Sol",
-    whatsapp: "+5492901000001",
+    establishment_id: "23713213",
+    establishment_name: "CAMPING El pinar dormis",
+    whatsapp: "+542944102774",
     week_start: currentWeek,
     completed: true,
     missing_fields: [],
@@ -3046,6 +3046,24 @@ const demoStats: StatsResponse = {
       unit_occupancy_percent: 4.5,
     },
     {
+      accommodation_type: "Campings",
+      establishments: 8,
+      participant_establishments: 3,
+      participation_percent: 37.5,
+      expected_responses: 32,
+      response_count: 5,
+      missing_responses: 27,
+      response_rate_percent: 15.63,
+      occupied_places: 24,
+      available_places: 460,
+      respondent_available_places: 188,
+      occupancy_rate_percent: 5.22,
+      occupied_units: 9,
+      available_units: 142,
+      respondent_available_units: 48,
+      unit_occupancy_percent: 6.34,
+    },
+    {
       accommodation_type: "Hostels",
       establishments: 7,
       participant_establishments: 3,
@@ -3075,16 +3093,19 @@ const demoStatsAvailability: StatsAvailability = {
 
 const demoEstablishments: EstablishmentSummary[] = [
   {
-    id: "10000001",
-    establishment_name: "Hotel Sol",
-    accommodation_name: "Hotel Sol",
-    parcel_number: "101",
-    address: "Av. Principal 123",
-    phone: "+5492901000001",
-    units: 17,
-    places: 42,
-    accommodation_type: "Hoteles / hosterias",
-    whatsapp: "+5492901000001",
+    id: "23713213",
+    establishment_name: "CAMPING El pinar dormis",
+    accommodation_name: "CAMPING El pinar dormis",
+    parcel_number: "8040",
+    address: "SUBIDA DE LA CRUZ 1121",
+    phone: "+542944102774",
+    category_number: 6,
+    category_numbers: [6],
+    accommodation_types: ["Campings", "Dormis"],
+    units: 11,
+    places: 28,
+    accommodation_type: "Campings",
+    whatsapp: "+542944102774",
   },
   {
     id: "10000002",
