@@ -174,6 +174,33 @@ const communicationTemplates = [
   { value: "custom", label: "Mensaje personalizado" },
 ];
 
+const demoAccesses = [
+  {
+    title: "Admin MEB",
+    description: "Acceso total",
+    username: "admin",
+    password: "admin123",
+  },
+  {
+    title: "Turismo",
+    description: "Ranking de respuestas",
+    username: "turismo",
+    password: "turismo123",
+  },
+  {
+    title: "Marketing",
+    description: "Graficos y estadisticas",
+    username: "marketing",
+    password: "marketing123",
+  },
+];
+
+const demoEstablishmentAccess = {
+  title: "Emprendimiento demo",
+  description: "Carga de ocupacion",
+  id: "10000001",
+};
+
 function buildAssistedMessage(template: string, establishmentName: string, detail: string, periodStart: string) {
   const cleanDetail = detail.trim() || "Sin detalle adicional.";
 
@@ -701,6 +728,42 @@ export default function Home() {
               <span>Cumplimiento</span>
               <span>Estadisticas</span>
             </div>
+            <div className="login-demo-panel">
+              <div>
+                <p className="eyebrow">Demo activa</p>
+                <h2>Accesos rapidos para probar perfiles</h2>
+              </div>
+              <div className="login-demo-grid">
+                {demoAccesses.map((access) => (
+                  <button
+                    className="demo-access-card"
+                    key={access.username}
+                    type="button"
+                    onClick={() => {
+                      setAdminUsername(access.username);
+                      setAdminPassword(access.password);
+                      setLoginError("");
+                    }}
+                  >
+                    <strong>{access.title}</strong>
+                    <span>{access.description}</span>
+                    <small>{access.username} / {access.password}</small>
+                  </button>
+                ))}
+                <button
+                  className="demo-access-card"
+                  type="button"
+                  onClick={() => {
+                    setLoginId(demoEstablishmentAccess.id);
+                    setLoginError("");
+                  }}
+                >
+                  <strong>{demoEstablishmentAccess.title}</strong>
+                  <span>{demoEstablishmentAccess.description}</span>
+                  <small>ID {demoEstablishmentAccess.id}</small>
+                </button>
+              </div>
+            </div>
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
             {loginError ? (
@@ -709,13 +772,28 @@ export default function Home() {
                 <span>{loginError}</span>
               </div>
             ) : null}
-            <form className="login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
+            <form className="login-card meb-login-card" onSubmit={(event) => { event.preventDefault(); loginAdmin(); }}>
               <div className="panel-title card-title">
                 <div>
                   <Users size={21} />
                   <h2>Usuarios MEB</h2>
                 </div>
                 <LogoMark className="brand-logo card-logo" />
+              </div>
+              <div className="login-credential-strip">
+                {demoAccesses.map((access) => (
+                  <button
+                    key={access.username}
+                    type="button"
+                    onClick={() => {
+                      setAdminUsername(access.username);
+                      setAdminPassword(access.password);
+                      setLoginError("");
+                    }}
+                  >
+                    {access.title}
+                  </button>
+                ))}
               </div>
               <label>
                 Usuario
@@ -734,7 +812,7 @@ export default function Home() {
                 <span>Ingresar</span>
               </button>
             </form>
-            <form className="login-card" onSubmit={(event) => { event.preventDefault(); login(loginId); }}>
+            <form className="login-card establishment-login-card" onSubmit={(event) => { event.preventDefault(); login(loginId); }}>
               <div className="panel-title card-title">
                 <div>
                   <Building2 size={21} />
@@ -742,6 +820,16 @@ export default function Home() {
                 </div>
                 <LogoMark className="brand-logo card-logo" />
               </div>
+              <button
+                className="login-demo-fill"
+                type="button"
+                onClick={() => {
+                  setLoginId(demoEstablishmentAccess.id);
+                  setLoginError("");
+                }}
+              >
+                Usar ID demo: {demoEstablishmentAccess.id}
+              </button>
               <label>
                 ID numerico
                 <input
