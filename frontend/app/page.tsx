@@ -728,42 +728,6 @@ export default function Home() {
               <span>Cumplimiento</span>
               <span>Estadisticas</span>
             </div>
-            <div className="login-demo-panel">
-              <div>
-                <p className="eyebrow">Demo activa</p>
-                <h2>Accesos rapidos para probar perfiles</h2>
-              </div>
-              <div className="login-demo-grid">
-                {demoAccesses.map((access) => (
-                  <button
-                    className="demo-access-card"
-                    key={access.username}
-                    type="button"
-                    onClick={() => {
-                      setAdminUsername(access.username);
-                      setAdminPassword(access.password);
-                      setLoginError("");
-                    }}
-                  >
-                    <strong>{access.title}</strong>
-                    <span>{access.description}</span>
-                    <small>{access.username} / {access.password}</small>
-                  </button>
-                ))}
-                <button
-                  className="demo-access-card"
-                  type="button"
-                  onClick={() => {
-                    setLoginId(demoEstablishmentAccess.id);
-                    setLoginError("");
-                  }}
-                >
-                  <strong>{demoEstablishmentAccess.title}</strong>
-                  <span>{demoEstablishmentAccess.description}</span>
-                  <small>ID {demoEstablishmentAccess.id}</small>
-                </button>
-              </div>
-            </div>
           </div>
           <div className="login-actions" aria-label="Usuarios demo">
             {loginError ? (

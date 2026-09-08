@@ -61,7 +61,7 @@ button {
     repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 18px),
     linear-gradient(135deg, #143b28 0%, #1f6845 58%, #195235 100%);
   color: #ffffff;
-  min-height: 690px;
+  min-height: 620px;
   display: grid;
   align-content: space-between;
   gap: 26px;
@@ -178,68 +178,6 @@ h2 {
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
-}
-
-.login-demo-panel {
-  display: grid;
-  gap: 16px;
-  max-width: 610px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 20px;
-  background: rgba(6, 31, 20, 0.24);
-  padding: 18px;
-  backdrop-filter: blur(8px);
-}
-
-.login-demo-panel h2 {
-  color: #ffffff;
-  font-size: 24px;
-}
-
-.login-demo-panel .eyebrow {
-  margin-bottom: 6px;
-}
-
-.login-demo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.demo-access-card {
-  display: grid;
-  gap: 5px;
-  min-height: 106px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  padding: 14px;
-  text-align: left;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-}
-
-.demo-access-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.demo-access-card strong {
-  font-size: 15px;
-}
-
-.demo-access-card span {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.demo-access-card small {
-  align-self: end;
-  color: #fff6d8;
-  font-size: 12px;
-  font-weight: 900;
 }
 
 .login-actions {
@@ -2242,7 +2180,6 @@ button.table-row {
   }
 
   .login-highlight-grid,
-  .login-demo-grid,
   .login-credential-strip {
     grid-template-columns: 1fr;
   }
