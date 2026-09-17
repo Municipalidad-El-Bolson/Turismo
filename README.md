@@ -77,26 +77,27 @@ La lista base de turismo 2026 se carga automaticamente desde `backend/app/establ
 
 ## WhatsApp
 
-La app trae una integracion preparada para WhatsApp Cloud API de Meta.
+La app mantiene el launcher asistido de WhatsApp Web/app y suma envio real masivo mediante WhatsApp Cloud API de Meta.
 
-Por defecto corre en modo simulacion:
-
-```env
-WHATSAPP_PROVIDER=console
-```
-
-Para enviar mensajes reales, configurar:
+Para enviar mensajes reales, configurar en el servidor:
 
 ```env
-WHATSAPP_PROVIDER=meta
 WHATSAPP_ACCESS_TOKEN=token_de_meta
 WHATSAPP_PHONE_NUMBER_ID=id_del_numero_de_whatsapp
-WHATSAPP_GRAPH_VERSION=v23.0
+WHATSAPP_TEMPLATE_NAME=recordatorio_carga
+WHATSAPP_TEMPLATE_LANGUAGE=es_AR
+WHATSAPP_API_VERSION=v20.0
 ```
 
-Desde el panel admin se puede enviar un recordatorio individual desde Cumplimiento, o recordar a todos los pendientes de la semana seleccionada.
+La plantilla aprobada en Meta debe aceptar tres variables en el cuerpo:
 
-Nota: para mensajes iniciados por la organizacion fuera de la ventana de atencion de WhatsApp, Meta puede requerir plantillas aprobadas. El servicio quedo encapsulado en `backend/app/whatsapp.py` para cambiar el texto libre por plantillas cuando tengas la cuenta configurada.
+```text
+{{1}} nombre del establecimiento
+{{2}} fecha de inicio del periodo
+{{3}} detalle adicional
+```
+
+Desde Cumplimiento, el boton `Recordar pendientes` abre el modal de comunicacion. En modo masivo, `Enviar masivo por API` envia todos los pendientes con telefono usando esa plantilla aprobada. Si las credenciales no estan configuradas, el sistema avisa y se puede seguir usando el envio asistido por WhatsApp Web/app.
 
 ## Proximos pasos sugeridos
 

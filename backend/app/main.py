@@ -43,7 +43,11 @@ from .schemas import (
     StatsResponse,
     User,
     UserRole,
+    WhatsAppBulkRequest,
+    WhatsAppBulkResponse,
+    WhatsAppSendResult,
 )
+from .whatsapp import send_template_message, whatsapp_configured
 
 app = FastAPI(title="Turismo MEB API", version="0.1.0")
 
@@ -340,3 +344,90 @@ async def stats(
 @app.get("/admin/stats/availability", response_model=StatsAvailability)
 async def stats_period_availability(_: User = Depends(require_stats_access)) -> StatsAvailability:
     return StatsAvailability(**await stats_availability())
+
+
+@app.post("/admin/whatsapp/bulk", response_model=WhatsAppBulkResponse)
+async def send_bulk_whatsapp(
+    payload: WhatsAppBulkRequest,
+    _: User = Depends(require_admin),
+) -> WhatsAppBulkResponse:
+    if not whatsapp_configured():
+        return WhatsAppBulkResponse(
+            configured=False,
+            attempted=0,
+            sent=0,
+            failed=len(payload.establishment_ids),
+            results=[
+                WhatsAppSendResult(
+                    establishment_id=establishment_id,
+                    establishment_name="",
+                    ok=False,
+                    error="WhatsApp API is not configured",
+                )
+                for establishment_id in payload.establishment_ids
+            ],
+        )
+
+    establishments_by_id = {
+        item["id"]: item
+        for item in await list_establishments()
+        if item["id"] in set(payload.establishment_ids)
+    }
+    results: list[WhatsAppSendResult] = []
+    for establishment_id in payload.establishment_ids:
+        establishment = establishments_by_id.get(establishment_id)
+        if not establishment:
+            results.append(
+                WhatsAppSendResult(
+                    establishment_id=establishment_id,
+                    establishment_name="",
+                    ok=False,
+                    error="Establishment not found",
+                )
+            )
+            continue
+
+        establishment_name = establishment["accommodation_name"] or establishment["establishment_name"] or establishment["display_name"]
+        phone = establishment["phone"] or establishment["whatsapp"]
+        try:
+            response = await send_template_message(
+                phone=phone,
+                establishment_name=establishment_name,
+                period_start=payload.period_start.isoformat(),
+                detail=payload.detail,
+                template_name=payload.template_name,
+                language_code=payload.language_code,
+            )
+            message_id = None
+            messages = response.get("messages") if isinstance(response, dict) else None
+            if messages and isinstance(messages, list):
+                message_id = messages[0].get("id")
+            results.append(
+                WhatsAppSendResult(
+                    establishment_id=establishment_id,
+                    establishment_name=establishment_name,
+                    phone=phone,
+                    ok=True,
+                    message_id=message_id,
+                )
+            )
+        except Exception as exc:  # Meta returns useful per-recipient errors.
+            results.append(
+                WhatsAppSendResult(
+                    establishment_id=establishment_id,
+                    establishment_name=establishment_name,
+                    phone=phone,
+                    ok=False,
+                    error=str(exc),
+                )
+            )
+
+    sent = sum(1 for result in results if result.ok)
+    failed = len(results) - sent
+    return WhatsAppBulkResponse(
+        configured=True,
+        attempted=len(results),
+        sent=sent,
+        failed=failed,
+        results=results,
+    )

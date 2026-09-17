@@ -150,6 +150,23 @@ export type CorrectionRequestPayload = {
   notes?: string;
 };
 
+export type WhatsAppBulkResult = {
+  establishment_id: string;
+  establishment_name: string;
+  phone?: string;
+  ok: boolean;
+  message_id?: string;
+  error?: string;
+};
+
+export type WhatsAppBulkResponse = {
+  configured: boolean;
+  attempted: number;
+  sent: number;
+  failed: number;
+  results: WhatsAppBulkResult[];
+};
+
 function apiUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window === "undefined") {
@@ -254,6 +271,17 @@ export const api = {
     request<CorrectionRequest>(`/admin/correction-requests/${requestId}/review?userId=${userId}`, {
       method: "POST",
       body: JSON.stringify({ status }),
+    }),
+  sendBulkWhatsApp: (userId: string, payload: {
+    establishment_ids: string[];
+    detail: string;
+    period_start: string;
+    template_name?: string;
+    language_code?: string;
+  }) =>
+    request<WhatsAppBulkResponse>(`/admin/whatsapp/bulk?userId=${userId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };
 

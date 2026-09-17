@@ -838,6 +838,7 @@ export default function Home() {
       {isAdmin ? (
         <AdminPanel
           accessRole="admin"
+          userId={user.id}
           compliance={compliance}
           correctionRequests={correctionRequests}
           stats={stats}
@@ -881,6 +882,7 @@ export default function Home() {
       ) : canViewStats ? (
         <AdminPanel
           accessRole="marketing"
+          userId={user.id}
           compliance={[]}
           correctionRequests={[]}
           stats={stats}
@@ -1373,6 +1375,7 @@ function TourismPanel(props: {
 
 function AdminPanel(props: {
   accessRole: "admin" | "marketing";
+  userId: string;
   compliance: Compliance[];
   correctionRequests: CorrectionRequest[];
   stats: StatsResponse;
@@ -1438,6 +1441,8 @@ function AdminPanel(props: {
   const [bulkTargetIndex, setBulkTargetIndex] = useState(0);
   const [bulkSentIds, setBulkSentIds] = useState<string[]>([]);
   const [groupCopyStatus, setGroupCopyStatus] = useState("");
+  const [apiSendStatus, setApiSendStatus] = useState("");
+  const [apiSending, setApiSending] = useState(false);
   const [communicationTemplate, setCommunicationTemplate] = useState(communicationTemplates[0].value);
   const [communicationDetail, setCommunicationDetail] = useState("");
   const [adminView, setAdminView] = useState<"dashboard" | "create" | "compliance" | "corrections">("dashboard");
@@ -1620,6 +1625,7 @@ function AdminPanel(props: {
     setBulkTargetIndex(0);
     setBulkSentIds([]);
     setGroupCopyStatus("");
+    setApiSendStatus("");
     setCommunicationTargetId(nextTargetId);
     setCommunicationOpen(true);
   }
@@ -1630,6 +1636,7 @@ function AdminPanel(props: {
     setBulkTargetIndex(0);
     setBulkSentIds([]);
     setGroupCopyStatus("");
+    setApiSendStatus("");
     setCommunicationTemplate("load_reminder");
     setCommunicationTargetId(bulkCommunicationTargets[0] ?? "");
     setCommunicationOpen(true);
@@ -1641,6 +1648,7 @@ function AdminPanel(props: {
     setBulkTargetIndex(0);
     setBulkSentIds([]);
     setGroupCopyStatus("");
+    setApiSendStatus("");
     setCommunicationTemplate("load_reminder");
     setCommunicationOpen(true);
   }
@@ -1681,6 +1689,29 @@ function AdminPanel(props: {
     setBulkSentIds((current) => current.includes(currentId) ? current : [...current, currentId]);
     if (bulkTargetIndex < bulkTotal - 1) {
       setBulkTargetIndex((current) => current + 1);
+    }
+  }
+
+  async function sendBulkWhatsAppApi() {
+    if (!bulkTargetIds.length || apiSending) return;
+    setApiSending(true);
+    setApiSendStatus("Enviando por WhatsApp API...");
+    try {
+      const response = await api.sendBulkWhatsApp(props.userId, {
+        establishment_ids: bulkTargetIds,
+        detail: communicationDetail.trim() || "Sin detalle adicional.",
+        period_start: props.weekStart,
+      });
+      if (!response.configured) {
+        setApiSendStatus("WhatsApp API no esta configurada en el servidor. Carga las credenciales en .env.");
+        return;
+      }
+      setBulkSentIds(response.results.filter((result) => result.ok).map((result) => result.establishment_id));
+      setApiSendStatus(`API finalizada: ${response.sent} enviados, ${response.failed} fallidos.`);
+    } catch {
+      setApiSendStatus("No se pudo enviar por API. Revisa credenciales, plantilla aprobada o conectividad del backend.");
+    } finally {
+      setApiSending(false);
     }
   }
 
@@ -1831,7 +1862,7 @@ function AdminPanel(props: {
                   {communicationMode === "group"
                     ? "Copias el texto, abris WhatsApp Web y lo pegas en el grupo que corresponda."
                     : communicationMode === "bulk"
-                      ? "WhatsApp abre un destinatario por vez. Revisas, envias y avanzas al siguiente pendiente."
+                      ? "Podes enviar por WhatsApp API con plantilla aprobada, o abrir WhatsApp Web como respaldo asistido."
                       : "Elegis el motivo, completas el detalle y WhatsApp abre la conversacion con el texto preparado."}
                 </p>
               </div>
@@ -1940,17 +1971,24 @@ function AdminPanel(props: {
                     <p className="group-copy-status">{groupCopyStatus}</p>
                   ) : null}
                   {communicationMode === "bulk" ? (
-                    <div className="bulk-actions">
-                      <button className="secondary-button" type="button" onClick={() => goToBulkTarget(-1)} disabled={bulkTargetIndex <= 0}>
-                        Anterior
+                    <>
+                      <button className="primary-button whatsapp-api-button" type="button" onClick={sendBulkWhatsAppApi} disabled={!bulkTotal || apiSending}>
+                        <MessageCircle size={17} />
+                        <span>{apiSending ? "Enviando..." : "Enviar masivo por API"}</span>
                       </button>
-                      <button className="primary-button" type="button" onClick={markBulkSentAndContinue} disabled={!selectedCommunicationTarget}>
-                        Marcar y seguir
-                      </button>
-                      <button className="secondary-button" type="button" onClick={() => goToBulkTarget(1)} disabled={bulkTargetIndex >= bulkTotal - 1}>
-                        Saltar
-                      </button>
-                    </div>
+                      {apiSendStatus ? <p className="api-send-status">{apiSendStatus}</p> : null}
+                      <div className="bulk-actions">
+                        <button className="secondary-button" type="button" onClick={() => goToBulkTarget(-1)} disabled={bulkTargetIndex <= 0}>
+                          Anterior
+                        </button>
+                        <button className="primary-button" type="button" onClick={markBulkSentAndContinue} disabled={!selectedCommunicationTarget}>
+                          Marcar y seguir
+                        </button>
+                        <button className="secondary-button" type="button" onClick={() => goToBulkTarget(1)} disabled={bulkTargetIndex >= bulkTotal - 1}>
+                          Saltar
+                        </button>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               </div>

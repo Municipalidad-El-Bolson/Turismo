@@ -186,3 +186,28 @@ class StatsResponse(BaseModel):
 class StatsAvailability(BaseModel):
     years: list[int]
     months_by_year: dict[str, list[int]]
+
+
+class WhatsAppBulkRequest(BaseModel):
+    establishment_ids: list[str] = Field(min_length=1, max_length=500)
+    template_name: str | None = None
+    language_code: str | None = None
+    detail: str = Field(default="Sin detalle adicional.", max_length=800)
+    period_start: date
+
+
+class WhatsAppSendResult(BaseModel):
+    establishment_id: str
+    establishment_name: str
+    phone: str | None = None
+    ok: bool
+    message_id: str | None = None
+    error: str | None = None
+
+
+class WhatsAppBulkResponse(BaseModel):
+    configured: bool
+    attempted: int
+    sent: int
+    failed: int
+    results: list[WhatsAppSendResult]

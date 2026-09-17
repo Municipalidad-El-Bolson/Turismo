@@ -1287,12 +1287,19 @@ form {
   background: #12863c;
 }
 
+.whatsapp-api-button {
+  width: auto;
+  min-width: 190px;
+  background: linear-gradient(135deg, #0f8c45, #16a34a);
+}
+
 .whatsapp-copy-button {
   width: auto;
   min-width: 168px;
 }
 
-.group-copy-status {
+.group-copy-status,
+.api-send-status {
   margin: 0;
   border: 1px solid #cce9d8;
   border-radius: 12px;
