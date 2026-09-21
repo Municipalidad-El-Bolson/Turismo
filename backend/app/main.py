@@ -11,6 +11,7 @@ from .repositories import (
     aggregate_type_stats,
     create_correction_request,
     create_establishment,
+    create_whatsapp_send_audit,
     delete_entry,
     delete_establishment,
     ensure_indexes,
@@ -349,14 +350,37 @@ async def stats_period_availability(_: User = Depends(require_stats_access)) -> 
 @app.post("/admin/whatsapp/bulk", response_model=WhatsAppBulkResponse)
 async def send_bulk_whatsapp(
     payload: WhatsAppBulkRequest,
-    _: User = Depends(require_admin),
+    user: User = Depends(require_admin),
 ) -> WhatsAppBulkResponse:
+    template_name = payload.template_name or settings.whatsapp_template_name
+    if template_name not in settings.allowed_whatsapp_templates:
+        raise HTTPException(status_code=400, detail="WhatsApp template is not allowed")
+    if not payload.confirmed:
+        raise HTTPException(status_code=400, detail="Bulk WhatsApp send must be confirmed")
+
+    estimated_cost_ars = round(len(payload.establishment_ids) * settings.whatsapp_utility_message_cost_ars, 2)
+
     if not whatsapp_configured():
+        audit_id = await create_whatsapp_send_audit(
+            {
+                "user_id": user.id,
+                "template_name": template_name,
+                "period_start": payload.period_start.isoformat(),
+                "target_count": len(payload.establishment_ids),
+                "estimated_cost_ars": estimated_cost_ars,
+                "configured": False,
+                "sent": 0,
+                "failed": len(payload.establishment_ids),
+                "results": [],
+            }
+        )
         return WhatsAppBulkResponse(
             configured=False,
             attempted=0,
             sent=0,
             failed=len(payload.establishment_ids),
+            estimated_cost_ars=estimated_cost_ars,
+            audit_id=audit_id,
             results=[
                 WhatsAppSendResult(
                     establishment_id=establishment_id,
@@ -395,7 +419,7 @@ async def send_bulk_whatsapp(
                 establishment_name=establishment_name,
                 period_start=payload.period_start.isoformat(),
                 detail=payload.detail,
-                template_name=payload.template_name,
+                template_name=template_name,
                 language_code=payload.language_code,
             )
             message_id = None
@@ -424,10 +448,25 @@ async def send_bulk_whatsapp(
 
     sent = sum(1 for result in results if result.ok)
     failed = len(results) - sent
+    audit_id = await create_whatsapp_send_audit(
+        {
+            "user_id": user.id,
+            "template_name": template_name,
+            "period_start": payload.period_start.isoformat(),
+            "target_count": len(payload.establishment_ids),
+            "estimated_cost_ars": estimated_cost_ars,
+            "configured": True,
+            "sent": sent,
+            "failed": failed,
+            "results": [result.model_dump() for result in results],
+        }
+    )
     return WhatsAppBulkResponse(
         configured=True,
         attempted=len(results),
         sent=sent,
         failed=failed,
+        estimated_cost_ars=estimated_cost_ars,
+        audit_id=audit_id,
         results=results,
     )

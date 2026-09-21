@@ -189,11 +189,12 @@ class StatsAvailability(BaseModel):
 
 
 class WhatsAppBulkRequest(BaseModel):
-    establishment_ids: list[str] = Field(min_length=1, max_length=500)
+    establishment_ids: list[str] = Field(min_length=1, max_length=400)
     template_name: str | None = None
     language_code: str | None = None
     detail: str = Field(default="Sin detalle adicional.", max_length=800)
     period_start: date
+    confirmed: bool = False
 
 
 class WhatsAppSendResult(BaseModel):
@@ -210,4 +211,6 @@ class WhatsAppBulkResponse(BaseModel):
     attempted: int
     sent: int
     failed: int
+    estimated_cost_ars: float
+    audit_id: str | None = None
     results: list[WhatsAppSendResult]

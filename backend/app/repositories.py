@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from secrets import randbelow
 
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError
 
 from .database import get_database
@@ -224,6 +224,8 @@ async def ensure_indexes() -> None:
     )
     await db.correction_requests.create_index([("status", ASCENDING), ("created_at", ASCENDING)])
     await db.correction_requests.create_index([("establishment_id", ASCENDING), ("created_at", ASCENDING)])
+    await db.whatsapp_send_audits.create_index([("created_at", DESCENDING)])
+    await db.whatsapp_send_audits.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
 
 
 async def seed_demo_data() -> None:
@@ -268,6 +270,15 @@ async def seed_demo_data() -> None:
     await seed_establishments_from_file()
     await seed_occupancy_from_file()
     await backfill_accommodation_types()
+
+
+async def create_whatsapp_send_audit(document: dict) -> str:
+    payload = {
+        **document,
+        "created_at": datetime.now(UTC),
+    }
+    result = await get_database().whatsapp_send_audits.insert_one(payload)
+    return str(result.inserted_id)
 
 
 async def clean_legacy_establishments() -> None:

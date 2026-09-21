@@ -164,6 +164,8 @@ export type WhatsAppBulkResponse = {
   attempted: number;
   sent: number;
   failed: number;
+  estimated_cost_ars: number;
+  audit_id?: string;
   results: WhatsAppBulkResult[];
 };
 
@@ -276,6 +278,7 @@ export const api = {
     establishment_ids: string[];
     detail: string;
     period_start: string;
+    confirmed: boolean;
     template_name?: string;
     language_code?: string;
   }) =>

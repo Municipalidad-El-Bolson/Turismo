@@ -174,6 +174,14 @@ const communicationTemplates = [
   { value: "custom", label: "Mensaje personalizado" },
 ];
 
+const whatsappApiTemplateNames: Record<string, string> = {
+  load_reminder: "recordatorio_carga",
+  missing_data: "carga_incompleta",
+  admin_notice: "aviso_administrativo",
+};
+
+const whatsappApiEstimatedCostArs = 37.68;
+
 const demoAccesses = [
   {
     title: "Admin MEB",
@@ -263,6 +271,14 @@ function buildWhatsAppDeepLink(phone: string | undefined, message: string) {
   const normalizedPhone = normalizeWhatsAppPhone(phone);
   if (!normalizedPhone) return "";
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+function formatMoneyArs(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function panelTitle(user: User) {
@@ -1535,6 +1551,8 @@ function AdminPanel(props: {
   const bulkTotal = bulkTargetIds.length;
   const bulkCurrentNumber = bulkTotal ? bulkTargetIndex + 1 : 0;
   const bulkProgress = bulkTotal ? Math.round((bulkSentIds.length / bulkTotal) * 100) : 0;
+  const selectedApiTemplateName = whatsappApiTemplateNames[communicationTemplate];
+  const apiEstimatedCost = bulkTotal * whatsappApiEstimatedCostArs;
 
   useEffect(() => {
     if (!props.selectedProfile && !communicationOpen) return;
@@ -1694,6 +1712,19 @@ function AdminPanel(props: {
 
   async function sendBulkWhatsAppApi() {
     if (!bulkTargetIds.length || apiSending) return;
+    if (!selectedApiTemplateName) {
+      setApiSendStatus("Para envio masivo por API elegi una plantilla aprobada. El mensaje personalizado queda solo para WhatsApp Web/app.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Vas a enviar ${bulkTotal} mensajes por WhatsApp API.\n\n` +
+      `Costo estimado: ${formatMoneyArs(apiEstimatedCost)}.\n\n` +
+      "Solo debe confirmarlo un administrador autorizado. ¿Enviar ahora?",
+    );
+    if (!confirmed) {
+      setApiSendStatus("Envio cancelado antes de confirmar.");
+      return;
+    }
     setApiSending(true);
     setApiSendStatus("Enviando por WhatsApp API...");
     try {
@@ -1701,13 +1732,18 @@ function AdminPanel(props: {
         establishment_ids: bulkTargetIds,
         detail: communicationDetail.trim() || "Sin detalle adicional.",
         period_start: props.weekStart,
+        confirmed: true,
+        template_name: selectedApiTemplateName,
       });
       if (!response.configured) {
         setApiSendStatus("WhatsApp API no esta configurada en el servidor. Carga las credenciales en .env.");
         return;
       }
       setBulkSentIds(response.results.filter((result) => result.ok).map((result) => result.establishment_id));
-      setApiSendStatus(`API finalizada: ${response.sent} enviados, ${response.failed} fallidos.`);
+      setApiSendStatus(
+        `API finalizada: ${response.sent} enviados, ${response.failed} fallidos. ` +
+        `Costo estimado: ${formatMoneyArs(response.estimated_cost_ars)}.`,
+      );
     } catch {
       setApiSendStatus("No se pudo enviar por API. Revisa credenciales, plantilla aprobada o conectividad del backend.");
     } finally {
@@ -1876,6 +1912,7 @@ function AdminPanel(props: {
                     <span style={{ width: `${bulkProgress}%` }} />
                   </div>
                   <small>{bulkCurrentNumber ? `Contacto ${bulkCurrentNumber} de ${bulkTotal}` : "No hay pendientes con telefono"}</small>
+                  <small>Costo estimado API: {formatMoneyArs(apiEstimatedCost)}</small>
                 </div>
               ) : null}
               <div className="assisted-recipient">
@@ -1972,10 +2009,13 @@ function AdminPanel(props: {
                   ) : null}
                   {communicationMode === "bulk" ? (
                     <>
-                      <button className="primary-button whatsapp-api-button" type="button" onClick={sendBulkWhatsAppApi} disabled={!bulkTotal || apiSending}>
+                      <button className="primary-button whatsapp-api-button" type="button" onClick={sendBulkWhatsAppApi} disabled={!bulkTotal || apiSending || !selectedApiTemplateName}>
                         <MessageCircle size={17} />
                         <span>{apiSending ? "Enviando..." : "Enviar masivo por API"}</span>
                       </button>
+                      {!selectedApiTemplateName ? (
+                        <p className="api-send-status">El envio API solo permite plantillas aprobadas, no mensaje personalizado.</p>
+                      ) : null}
                       {apiSendStatus ? <p className="api-send-status">{apiSendStatus}</p> : null}
                       <div className="bulk-actions">
                         <button className="secondary-button" type="button" onClick={() => goToBulkTarget(-1)} disabled={bulkTargetIndex <= 0}>

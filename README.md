@@ -85,8 +85,10 @@ Para enviar mensajes reales, configurar en el servidor:
 WHATSAPP_ACCESS_TOKEN=token_de_meta
 WHATSAPP_PHONE_NUMBER_ID=id_del_numero_de_whatsapp
 WHATSAPP_TEMPLATE_NAME=recordatorio_carga
+WHATSAPP_ALLOWED_TEMPLATE_NAMES=recordatorio_carga,carga_incompleta,aviso_administrativo
 WHATSAPP_TEMPLATE_LANGUAGE=es_AR
 WHATSAPP_API_VERSION=v20.0
+WHATSAPP_UTILITY_MESSAGE_COST_ARS=37.68
 ```
 
 La plantilla aprobada en Meta debe aceptar tres variables en el cuerpo:
@@ -97,7 +99,18 @@ La plantilla aprobada en Meta debe aceptar tres variables en el cuerpo:
 {{3}} detalle adicional
 ```
 
-Desde Cumplimiento, el boton `Recordar pendientes` abre el modal de comunicacion. En modo masivo, `Enviar masivo por API` envia todos los pendientes con telefono usando esa plantilla aprobada. Si las credenciales no estan configuradas, el sistema avisa y se puede seguir usando el envio asistido por WhatsApp Web/app.
+Desde Cumplimiento, el boton `Recordar pendientes` abre el modal de comunicacion. En modo masivo, `Enviar masivo por API` envia todos los pendientes con telefono usando una plantilla aprobada.
+
+Controles de seguridad:
+
+- Solo el usuario admin puede ejecutar `/admin/whatsapp/bulk`.
+- El frontend pide confirmacion antes de enviar y muestra el costo estimado.
+- El backend rechaza envios no confirmados.
+- El backend rechaza plantillas que no esten en `WHATSAPP_ALLOWED_TEMPLATE_NAMES`.
+- Cada intento queda auditado en MongoDB en la coleccion `whatsapp_send_audits`.
+- El envio por API tiene un limite de 400 destinatarios por tanda.
+
+Si las credenciales no estan configuradas, el sistema avisa y se puede seguir usando el envio asistido por WhatsApp Web/app.
 
 ## Proximos pasos sugeridos
 
