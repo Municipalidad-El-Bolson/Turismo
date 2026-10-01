@@ -1,6 +1,10 @@
 from datetime import date, timedelta
+import hashlib
+import hmac
+import json
+import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import DuplicateKeyError
 
@@ -21,6 +25,7 @@ from .repositories import (
     list_entries_between,
     list_correction_requests,
     list_establishments,
+    record_whatsapp_inbound_message,
     review_correction_request,
     seed_demo_data,
     serialize_user,
@@ -49,6 +54,8 @@ from .schemas import (
     WhatsAppSendResult,
 )
 from .whatsapp import send_template_message, whatsapp_configured
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Turismo MEB API", version="0.1.0")
 
@@ -128,6 +135,119 @@ def establishment_summary(user: dict) -> EstablishmentSummary:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def verify_meta_signature(signature_header: str | None, body: bytes) -> bool:
+    if not settings.meta_app_secret:
+        logger.error("WhatsApp webhook signature check failed: META_APP_SECRET is not configured")
+        return False
+    if not signature_header or not signature_header.startswith("sha256="):
+        logger.warning("WhatsApp webhook signature check failed: missing or invalid signature header")
+        return False
+    expected_signature = hmac.new(
+        settings.meta_app_secret.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(signature_header, f"sha256={expected_signature}")
+
+
+async def process_whatsapp_webhook_payload(payload: dict) -> None:
+    if payload.get("object") != "whatsapp_business_account":
+        logger.info("Ignored WhatsApp webhook with object=%s", payload.get("object"))
+        return
+
+    processed = 0
+    duplicated = 0
+    ignored = 0
+
+    for entry in payload.get("entry", []):
+        entry_id = entry.get("id")
+        if settings.whatsapp_waba_id and entry_id != settings.whatsapp_waba_id:
+            ignored += 1
+            logger.info("Ignored WhatsApp webhook entry for unmatched WABA id=%s", entry_id)
+            continue
+
+        for change in entry.get("changes", []):
+            if change.get("field") != "messages":
+                ignored += 1
+                continue
+
+            value = change.get("value", {})
+            for message in value.get("messages", []):
+                message_id = message.get("id")
+                sender = message.get("from")
+                message_type = message.get("type")
+                text_body = message.get("text", {}).get("body") if message_type == "text" else None
+                if not message_id:
+                    ignored += 1
+                    continue
+
+                inserted = await record_whatsapp_inbound_message(
+                    {
+                        "message_id": message_id,
+                        "from": sender,
+                        "type": message_type,
+                        "text": text_body,
+                        "waba_id": entry_id,
+                        "phone_number_id": value.get("metadata", {}).get("phone_number_id"),
+                        "raw_message": message,
+                    }
+                )
+                if inserted:
+                    processed += 1
+                    logger.info(
+                        "Processed WhatsApp inbound message id=%s from=%s type=%s",
+                        message_id,
+                        sender,
+                        message_type,
+                    )
+                else:
+                    duplicated += 1
+                    logger.info("Ignored duplicate WhatsApp inbound message id=%s", message_id)
+
+    logger.info(
+        "WhatsApp webhook processing finished: processed=%s duplicated=%s ignored=%s",
+        processed,
+        duplicated,
+        ignored,
+    )
+
+
+@app.get("/webhooks/whatsapp")
+async def verify_whatsapp_webhook(request: Request) -> Response:
+    mode = request.query_params.get("hub.mode")
+    verify_token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+
+    if mode == "subscribe" and verify_token == settings.whatsapp_verify_token and challenge is not None:
+        logger.info("WhatsApp webhook verified")
+        return Response(content=challenge, status_code=200, media_type="text/plain")
+
+    logger.warning("WhatsApp webhook verification rejected")
+    return Response(status_code=403)
+
+
+@app.post("/webhooks/whatsapp")
+async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, str]:
+    body = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256")
+    if not verify_meta_signature(signature, body):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        logger.warning("WhatsApp webhook rejected: invalid JSON body")
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+
+    if payload.get("object") == "whatsapp_business_account":
+        background_tasks.add_task(process_whatsapp_webhook_payload, payload)
+        logger.info("Accepted WhatsApp webhook payload")
+    else:
+        logger.info("Accepted but ignored non-WhatsApp webhook object=%s", payload.get("object"))
+
+    return {"status": "received"}
 
 
 @app.post("/auth/login", response_model=LoginResponse)

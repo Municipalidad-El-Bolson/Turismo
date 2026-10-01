@@ -226,6 +226,8 @@ async def ensure_indexes() -> None:
     await db.correction_requests.create_index([("establishment_id", ASCENDING), ("created_at", ASCENDING)])
     await db.whatsapp_send_audits.create_index([("created_at", DESCENDING)])
     await db.whatsapp_send_audits.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+    await db.whatsapp_inbound_messages.create_index([("created_at", DESCENDING)])
+    await db.whatsapp_inbound_messages.create_index([("from", ASCENDING), ("created_at", DESCENDING)])
 
 
 async def seed_demo_data() -> None:
@@ -279,6 +281,19 @@ async def create_whatsapp_send_audit(document: dict) -> str:
     }
     result = await get_database().whatsapp_send_audits.insert_one(payload)
     return str(result.inserted_id)
+
+
+async def record_whatsapp_inbound_message(document: dict) -> bool:
+    payload = {
+        **document,
+        "_id": document["message_id"],
+        "created_at": datetime.now(UTC),
+    }
+    try:
+        await get_database().whatsapp_inbound_messages.insert_one(payload)
+    except DuplicateKeyError:
+        return False
+    return True
 
 
 async def clean_legacy_establishments() -> None:

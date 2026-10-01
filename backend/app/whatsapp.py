@@ -10,6 +10,13 @@ def whatsapp_configured() -> bool:
     return bool(settings.whatsapp_access_token and settings.whatsapp_phone_number_id)
 
 
+def whatsapp_messages_url() -> str:
+    return (
+        f"https://graph.facebook.com/{settings.whatsapp_api_version}/"
+        f"{settings.whatsapp_phone_number_id}/messages"
+    )
+
+
 def normalize_whatsapp_phone(phone: str | None) -> str:
     if not phone:
         return ""
@@ -56,16 +63,40 @@ async def send_template_message(
             ],
         },
     }
-    url = (
-        f"https://graph.facebook.com/{settings.whatsapp_api_version}/"
-        f"{settings.whatsapp_phone_number_id}/messages"
-    )
+    url = whatsapp_messages_url()
     headers = {
         "Authorization": f"Bearer {settings.whatsapp_access_token}",
         "Content-Type": "application/json",
     }
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.post(url, headers=headers, json=payload)
+    if response.status_code >= 400:
+        raise RuntimeError(response.text)
+    return response.json()
+
+
+async def send_text_message(phone: str, message: str) -> dict[str, Any]:
+    if not whatsapp_configured():
+        raise RuntimeError("WhatsApp API is not configured")
+
+    normalized_phone = normalize_whatsapp_phone(phone)
+    if not normalized_phone:
+        raise ValueError("Missing WhatsApp phone")
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": normalized_phone,
+        "type": "text",
+        "text": {
+            "body": message,
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.whatsapp_access_token}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(whatsapp_messages_url(), headers=headers, json=payload)
     if response.status_code >= 400:
         raise RuntimeError(response.text)
     return response.json()

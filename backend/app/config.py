@@ -7,11 +7,14 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""
+    whatsapp_waba_id: str = ""
+    whatsapp_verify_token: str = ""
     whatsapp_template_name: str = "recordatorio_carga"
     whatsapp_allowed_template_names: str = "recordatorio_carga,carga_incompleta,aviso_administrativo"
     whatsapp_template_language: str = "es_AR"
     whatsapp_api_version: str = "v20.0"
     whatsapp_utility_message_cost_ars: float = 37.68
+    meta_app_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

@@ -84,11 +84,14 @@ Para enviar mensajes reales, configurar en el servidor:
 ```env
 WHATSAPP_ACCESS_TOKEN=token_de_meta
 WHATSAPP_PHONE_NUMBER_ID=id_del_numero_de_whatsapp
+WHATSAPP_WABA_ID=id_de_la_waba
+WHATSAPP_VERIFY_TOKEN=token_de_verificacion_elegido_por_el_equipo
 WHATSAPP_TEMPLATE_NAME=recordatorio_carga
 WHATSAPP_ALLOWED_TEMPLATE_NAMES=recordatorio_carga,carga_incompleta,aviso_administrativo
 WHATSAPP_TEMPLATE_LANGUAGE=es_AR
 WHATSAPP_API_VERSION=v20.0
 WHATSAPP_UTILITY_MESSAGE_COST_ARS=37.68
+META_APP_SECRET=app_secret_de_meta
 ```
 
 La plantilla aprobada en Meta debe aceptar tres variables en el cuerpo:
@@ -111,6 +114,56 @@ Controles de seguridad:
 - El envio por API tiene un limite de 400 destinatarios por tanda.
 
 Si las credenciales no estan configuradas, el sistema avisa y se puede seguir usando el envio asistido por WhatsApp Web/app.
+
+### Webhook de WhatsApp Cloud API
+
+El backend expone:
+
+```text
+GET  /webhooks/whatsapp
+POST /webhooks/whatsapp
+```
+
+URL local:
+
+```text
+http://localhost:8000/webhooks/whatsapp
+```
+
+URL para Meta en produccion, si el backend esta publicado directo por el puerto 8000:
+
+```text
+https://TU-DOMINIO-O-TUNEL/webhooks/whatsapp
+```
+
+El `Verify Token` que se carga en Meta Developers debe ser exactamente el valor de `WHATSAPP_VERIFY_TOKEN`.
+
+El POST valida `X-Hub-Signature-256` con `META_APP_SECRET`, procesa solo eventos con `object=whatsapp_business_account` y `changes[].field=messages`, guarda mensajes entrantes en `whatsapp_inbound_messages` y evita duplicados usando el `message_id`.
+
+Para probar localmente el GET:
+
+```bash
+curl "http://localhost:8000/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=TU_VERIFY_TOKEN&hub.challenge=12345"
+```
+
+Para exponer temporalmente el webhook por HTTPS se puede usar un tunel como ngrok o Cloudflare Tunnel apuntando al backend:
+
+```bash
+ngrok http 8000
+```
+
+En Meta Developers cargar:
+
+```text
+Callback URL: https://TU-TUNEL/webhooks/whatsapp
+Verify token: el valor de WHATSAPP_VERIFY_TOKEN
+```
+
+Para probar envio saliente de texto desde el contenedor:
+
+```bash
+docker compose exec backend python -c "import asyncio; from app.whatsapp import send_text_message; asyncio.run(send_text_message('549XXXXXXXXXX', 'Mensaje de prueba desde Turismo MEB'))"
+```
 
 ## Proximos pasos sugeridos
 
